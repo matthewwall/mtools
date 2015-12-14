@@ -1,0 +1,57 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		ecmread
+# Required-Start:	$syslog
+# Required-Stop:	$syslog
+# Should-Start:		$local_fs
+# Should-Stop:		$local_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Starts ecmread
+# Description:		ecmread collects data from brultech energy monitor
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+PIDFILE0=/var/run/ecmread0.pid
+PIDFILE1=/var/run/ecmread1.pid
+APP=/opt/ecmread-2.0.0/bin/ecmread.py
+DBHOST=yarg
+DBNAME=ecm
+DBUSER=ecm
+DBPASS=ecm
+
+set -e
+
+case "$1" in
+    start)
+    echo -n "Starting ecmread:"
+    $APP --serial --serialport=/dev/ttyUSB0 --quiet -d --db-database=ecm --db-host=$DBHOST --db-database=$DBNAME --db-user=$DBUSER --db-passwd=$DBPASS 2>&1 >> /var/log/ecmread0.log &
+    pid=$!
+    echo $pid > $PIDFILE0
+    $APP --serial --serialport=/dev/ttyUSB1 --quiet -d --db-database=ecm --db-host=$DBHOST --db-database=$DBNAME --db-user=$DBUSER --db-passwd=$DBPASS 2>&1 >> /var/log/ecmread1.log &
+    pid=$!
+    echo $pid > $PIDFILE1
+    echo
+    ;;
+
+    stop)
+    echo -n "Shutting down ecmread:"
+    if [ -f $PIDFILE0 ]; then
+        kill `cat $PIDFILE0`
+        rm $PIDFILE0
+    fi
+    if [ -f $PIDFILE1 ]; then
+        kill `cat $PIDFILE1`
+        rm $PIDFILE1
+    fi
+    echo
+    ;;
+    
+    *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

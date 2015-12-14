@@ -1,0 +1,47 @@
+Fri Jan 31 18:49:11 EST 2014
+root     10171  0.7  2.1  31096 10912 pts/4    S    17:42   0:29 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB2 -c /opt/mtools/etc/house.cfg --quiet
+root     10174  0.6  2.1  31084 10896 pts/4    S    17:42   0:26 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB3 -c /opt/mtools/etc/house.cfg --quiet
+root     10177  2.2  2.4  32632 12728 pts/4    S    17:42   1:28 /usr/bin/python -u /opt/mtools/bin/btmon.py --quiet -c /opt/mtools/etc/upload.cfg
+root     10181  0.1  1.9  30348 10180 pts/4    S    17:42   0:05 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat0.cfg --quiet
+root     10182  0.1  1.9  30348 10176 pts/4    S    17:42   0:05 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat1.cfg --quiet
+root     10186  0.0  1.9  30368 10052 pts/4    S    17:42   0:03 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/ted.cfg --quiet
+root     10195  0.0  1.6  20856  8344 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-ecm1220.cfg --quiet
+root     10196  0.2  2.1  23824 11288 pts/4    S    17:43   0:10 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-gem.cfg --quiet
+root     10197  0.1  1.8  21588  9256 pts/4    S    17:43   0:04 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/montest-seg-ted.cfg --quiet
+root     10198  0.1  1.8  21960  9532 pts/4    S    17:43   0:07 /usr/bin/python -u /opt/mtools/bin/edsmon.py -c /opt/mtools/etc/montest-ows0.cfg --quiet
+root     10199  0.1  1.8  21856  9260 pts/4    S    17:43   0:06 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt0.cfg --quiet
+root     10200  0.1  1.8  21860  9260 pts/4    S    17:43   0:06 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt1.cfg --quiet
+
+
+after running awhile
+Fri Jan 31 18:04:03 EST 2014
+root     10171  0.7  2.1  31096 10884 pts/4    S    17:42   0:10 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB2 -c /opt/mtools/etc/house.cfg --quiet
+root     10174  0.6  2.1  31084 10872 pts/4    S    17:42   0:09 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB3 -c /opt/mtools/etc/house.cfg --quiet
+root     10177  2.0  2.4  32632 12584 pts/4    S    17:42   0:26 /usr/bin/python -u /opt/mtools/bin/btmon.py --quiet -c /opt/mtools/etc/upload.cfg
+root     10181  0.1  1.9  30348 10032 pts/4    S    17:42   0:02 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat0.cfg --quiet
+root     10182  0.1  1.9  30348 10036 pts/4    S    17:42   0:02 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat1.cfg --quiet
+root     10186  0.1  1.9  30368  9964 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/ted.cfg --quiet
+root     10195  0.0  1.6  20856  8344 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-ecm1220.cfg --quiet
+root     10196  0.3  1.8  21920  9508 pts/4    S    17:43   0:03 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-gem.cfg --quiet
+root     10197  0.1  1.7  21588  9212 pts/4    S    17:43   0:01 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/montest-seg-ted.cfg --quiet
+root     10198  0.2  1.8  21584  9312 pts/4    S    17:43   0:02 /usr/bin/python -u /opt/mtools/bin/edsmon.py -c /opt/mtools/etc/montest-ows0.cfg --quiet
+root     10199  0.2  1.7  21572  9204 pts/4    S    17:43   0:02 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt0.cfg --quiet
+root     10200  0.2  1.7  21572  9212 pts/4    S    17:43   0:02 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt1.cfg --quiet
+root     10220  0.0  0.1   1860   572 pts/4    S+   18:04   0:00 grep mtools
+
+
+just after startup
+Fri Jan 31 17:40:45 EST 2014
+
+root     10171  1.4  1.9  30280  9880 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB2 -c /opt/mtools/etc/house.cfg --quiet
+root     10174  1.5  1.9  30256  9864 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/btmon.py --serial --serial-port=/dev/ttyUSB3 -c /opt/mtools/etc/house.cfg --quiet
+root     10177  1.4  1.8  29608  9364 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/btmon.py --quiet -c /opt/mtools/etc/upload.cfg
+root     10181  1.5  1.9  30048  9852 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat0.cfg --quiet
+root     10182  1.6  1.9  30048  9852 pts/4    S    17:42   0:01 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/thermostat1.cfg --quiet
+root     10186  1.8  1.9  30064  9844 pts/4    S    17:42   0:00 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/ted.cfg --quiet
+root     10195  6.3  1.6  20856  8332 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-ecm1220.cfg --quiet
+root     10196  6.2  1.6  20856  8332 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/btmon.py -c /opt/mtools/etc/montest-seg-gem.cfg --quiet
+root     10197  5.6  1.7  21588  9212 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/tedmon.py -c /opt/mtools/etc/montest-seg-ted.cfg --quiet
+root     10198  6.3  1.7  21584  9220 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/edsmon.py -c /opt/mtools/etc/montest-ows0.cfg --quiet
+root     10199  6.2  1.7  21572  9196 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt0.cfg --quiet
+root     10200  5.9  1.7  21572  9196 pts/4    S    17:43   0:00 /usr/bin/python -u /opt/mtools/bin/rtmon.py -c /opt/mtools/etc/montest-rt1.cfg --quiet

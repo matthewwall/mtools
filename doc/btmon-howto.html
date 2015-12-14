@@ -1,0 +1,733 @@
+<html>
+<head>
+<title>btmon.py HOWTO</title>
+<!-- Copyright Matthew Wall, all rights reserved -->
+<link href="styles.css" rel="stylesheet" type="text/css" />
+<style type="text/css">
+.block_heading {
+  font-weight: bold;
+}
+.block_text {
+  background-color: #eeeeee;
+  border: 1px solid #dddddd;
+  padding: 2px 5px 2px 5px;
+}
+table {
+  padding-left: 20px;
+}
+h2 {
+  padding-top: 30px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>btmon Configuration Guide</h1>
+
+<p>
+This is a guide to setting up a power monitoring system using Brultech GEM, ECM-1240, or ECM-1220 devices.
+</p>
+<p>
+<code>btmon.py</code> is a Python script that collects data from Brultech devices then saves the data or uploads the data to online power monitoring services.  btmon uses little memory or processing power, so it is well-suited to running on devices such as routers or plug computers.  Since it is pure Python it will run on just about anything that has Python, including MacOSX, Windows, Linux.
+</p>
+<p>
+<code>btcfg.py</code> is a Python script that will query and modify the configuration of Brultech devices.  This can be useful when there is no windows computer available to run Brultech's IA software (for ECM devices) or Java available to run Green-Eye Monitor Setup (for GEM devices).
+</p>
+<p>
+<ul>
+<li>btmon and btcfg work only with Python 2, not Python 3
+<li>use the <code>--help</code> option for a list of all options
+<li>use the <code>--debug</code> option for more details about what btmon is doing
+<li>use the <code>--skip-upload</code> with the <code>--debug</code> option to see what would be uploaded without actually uploading
+</ul>
+</p>
+<p>
+btmon is compatible with many online services.  See the comments in btmon.py for details about how to create accounts and configure each online service.
+</p>
+<p>
+Installing btmon:<br/>
+<blockquote>
+<a href="#install">General Recommendations</a><br/>
+<a href="#install-debian">Debian Linux</a><br/>
+<a href="#install-windows">Windows</a><br/>
+</blockquote>
+Configuring the GEM or ECM:<br/>
+<blockquote>
+<a href="#config-gem">How to configure the GEM</a><br/>
+<a href="#config-ecm">How to configure the ECM</a><br/>
+<a href="#config-wiznet">How to configure network settings</a><br/>
+</blockquote>
+Configuration Notes:<br/>
+<blockquote>
+<a href="#polarity">Polarity</a><br/>
+<a href="#real-time">Real-Time Mode</a><br/>
+<a href="#clientserver">Client and Server Modes</a><br/>
+<a href="#polling-vs-blocking">Polling versus Blocking</a><br/>
+<a href="#multiplexing">Multiplexing</a><br/>
+</blockquote>
+Example Configurations:<br/>
+<blockquote>
+<a href="#btmon-on-router">Run btmon on a router</a><br/>
+<a href="#btmon-on-windows">Run btmon on Windows</a><br/>
+<a href="#rrd-ecm1240">Save to RRD from serial ECM-1240</a><br/>
+<a href="#seg-gem">Upload to Smart Energy Groups from ethernet GEM</a><br/>
+<a href="#mysql-gem">Save to MySQL from serial GEM</a><br/>
+<a href="#multiple-gem">Collect data from multiple GEM via TCP/IP with btmon in server mode</a><br/>
+<a href="#multiple-ecm">Collect data from multiple ECM via serial</a><br/>
+<a href="#multiple-ecm-polling">Collect data from multiple ECM via serial with polling</a><br/>
+<a href="#multiple-btmon">Run multiple instances of btmon</a><br/>
+</blockquote>
+</p>
+
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<h1>Installation</h1>
+
+<a name="install">
+<h2>Installation Recommendations</h2>
+</a>
+<p>
+btmon.py is a single Python script, so installation consists of downloading the script to your computer.  It is good practice to put the script into a separate folder since there probably will be a configuration file to go with the script.  btcfg.py can be placed in the same folder as btmon.  btcfg.py will be useful if the GEM/ECM configuration tools from Brultech will not run (e.g. no Java or no Windows).
+</p>
+<p>
+Of course, Python must be installed.  MacOSX and most flavors of linux come with Python.  Python is very easy to install on Windows.
+</p>
+<p>
+Additional Python modules may be required.  For example, if the Brultech device is connected via serial, the Python serial module will be required.  If saving to a MySQL database is desired, then the Python MySQLdb module must be installed.
+</p>
+<p>
+<ul>
+  <li>serial - required if reading data from serial port
+  <li>MySQLdb - required if saving to MySQL database
+  <li>sqlite3 - required if saving to sqlite database
+  <li>rrdtool - required if saving data to Round Robin Database files
+  <li>ConfigParser - required if using configuration files
+</ul>
+</p>
+<p>
+The approach to installing Python modules varies.  For example, on Redhat systems one would use <code>yum install python-serial</code>, on Debian systems one would use <code>apt-get install python-serial</code>, and on many systems one could use Python's built-in installer <code>easy_install pyserial</code>.
+</p>
+
+
+
+<a name="install-debian">
+<h2>Installing on Debian Linux</h2>
+</a>
+<p>
+<ol>
+<li>Install Python 2.6 or 2.7.  btmon will not work with Python 3.
+<pre class='block_text'>
+sudo apt-get install python2.6
+</pre>
+<li>Create a directory in which to keep btmon and any configuration file(s):
+<pre class='block_text'>
+mkdir btmon
+cp Downloads/btmon.py btmon
+</pre>
+</ol>
+</p>
+<p>
+That's it!  Depending on the configuration, you might have to install other Python modules.  If btmon complains about a missing module, install that module using apt-get.
+</p>
+
+
+
+<a name="install-windows">
+<h2>Installing on Windows</h2>
+</a>
+<p>
+<ol>
+<li>Install Python 2.6 or 2.7.  btmon will not work with Python 3.
+<pre class='block_text'>
+<a href="http://python.org/download/windows">http://python.org/download/windows</a>
+</pre>
+<li>Create a directory in which to keep btmon and any configuration file(s):
+<pre class='block_text'>
+mkdir c:\btmon
+copy Downloads\btmon.py c:\btmon
+</pre>
+</ol>
+</p>
+<p>
+That's it!  Depending on the configuration, you might have to install other Python modules.  If btmon complains about a missing module, install that module using easy_install.
+</p>
+
+
+
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<h1>Configuring the GEM or ECM</h1>
+
+<a name="config-gem">
+<h2>How to configure the GEM</h2>
+</a>
+<p>
+The examples in this guide require setting the real-time mode, send interval, and packet format.
+</p>
+<p>
+There are three tools for configuring a GEM:
+<ul>
+  <li>web browser directly to GEM (only for GEM with ethernet option)
+  <li>Green-Eye Monitor Setup - this is a Java application from Brultech
+  <li>btcfg.py - this is a Python script
+</ul>
+</p>
+<p>
+The GEM has many settings, such as real-time mode, per-channel type and range, polarity, etc.  See the Brultech documentation for details about all of the configuration options.
+</p>
+
+<a name="config-gem">
+<h2>How to configure the ECM</h2>
+</a>
+<p>
+The examples in this guide require setting the real-time mode and send interval.
+</p>
+<p>
+There are two tools for configuring an ECM:
+<ul>
+  <li>ECM-1240 IA - this is a Windows application from Brultech
+  <li>btcfg.py - this is a Python script
+</ul>
+</p>
+<p>
+The ECM has many settings, such as real-time mode, channel polarity, etc.  See the Brultech documentation for details about all of the configuration options.
+</p>
+
+<a name="config-gem">
+<h2>How to configure network settings</h2>
+</a>
+<p>
+Some GEM have a built-in serial-to-ethernet device.  Any ECM can be connected to a serial-to-ethernet device as well.  Typically this is a WizNET or similar that converts the GEM serial to TCP/IP.  Some devices convert serial to wired ethernet, others convert serial to wireless ethernet.
+</p>
+<p>
+The serial-to-ethernet device has a number of parameters, including:
+<ul>
+  <li>client/server mode
+  <li>IP address of device, and whether to use DHCP or a fixed IP address
+  <li>port on which to listen when device is in server mode
+  <li>IP address and port of server when device is in client mode
+  <li>wireless network settings
+</ul>
+</p>
+<p>
+There are a number of tools available to configure the serial-to-ethernet device.  These can be downloaded from the device vendor or from Brultech.  For example, WIZnet makes the source available for their configuration tool, so it is available on multiple platforms:
+<ul>
+  <li>Wiznet Configurator.app - MacOSX application
+  <li>WIZ1xxSR Configuration Tool - Windows application
+</ul>
+</p>
+<p>
+The examples in this guide require setting the client/server mode, IP address, and port.
+</p>
+
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<h1>Configuration Tips</h1>
+
+
+<a name="polarity">
+<h2>Polarity</h2>
+</a>
+<p>
+Two channels on the ECM-1240 and 32 channels on the GEM count not just power, but also power direction.  Each channel has two counters.  The absolute counter increments when power flows.  The polarized counter increments when power flows in one direction, but not in the other.  The polarity of the channel indicates whether the power should be considered positive or negative.
+</p>
+<p>
+There are many ways to configure the polarity.
+</p>
+<ul>
+<li>orientation of the CT</li>
+<li>position of the CT leads</li>
+<li>the per-channel polarity toggle in the GEM configuration</li>
+<li>the <code>--reverse-polarity</code> option to btmon</li>
+</ul>
+<p>
+btmon interprets the polarized counter differently than the GreenEyeMonitor setup tool.  btmon interprets an increase to the polarized counter as 'positive' energy.  GreenEyeMonitor interprets an increase to the polarized counter as 'negative' energy.  As a result, the polarity reported by btmon will be the inverse of the polarity reported by GreenEyeMonitor.
+</p>
+<p>
+Use the <code>--reverse-polarity</code> option to make the polarity reported by btmon match the polarity reported by GreenEyeMonitor and other Brultech tools.
+</p>
+
+
+<a name="real-time">
+<h2>Real-Time Mode</h2>
+</a>
+<p>
+GEM and ECM-1240 devices have a <i>real-time</i> mode.  When in real-time mode, the device emits packets at a regular interval.  When the device is not in real-time mode it will not emit a packet until a packet is requested.
+</p>
+<p>
+When configuring a GEM/ECM, first ensure that the device is not in real-time mode.  If the device is in real-time mode when configuration commands are sent, the real-time packets can interfere with communications.
+</p>
+
+
+<a name="clientserver">
+<h2>Client and Server Modes</h2>
+</a>
+<p>
+When communicating via TCP/IP, the GEM/ECM can be in either client or server mode.  When the GEM/ECM is in server mode, it responds to requests - the computer running btmon must initiate the request for communication.  When the GEM/ECM is in client mode, the GEM/ECM initiates the communication.
+</p>
+<p>
+Server mode is typical for most installations.  Client mode is useful when a firewall is betwen the GEM/ECM and the computer on which btmon is running, or when there are multiple GEM and a single instance of btmon.
+</p>
+<p>
+The --ip-mode option to btmon specifies the mode for btmon, not the GEM/ECM.  So if the GEM/ECM is in server mode, btmon should be in client mode.
+</p>
+<p>
+<ol>
+  <li>GEM is in server mode
+    <ul>
+      <li>IP address of GEM is 192.168.X.Y
+      <li>GEM is listening on port 5000
+      <li>btmon should be run in client mode like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=client --ip-host=192.168.X.Y --ip-port=5000
+</pre>
+    </ul>
+  <li>GEM is in client mode
+    <ul>
+      <li>server address in the GEM configuration should be the IP address of the computer on which btmon is running
+      <li>port in the GEM configuration should be arbitrary port number over 1000, say 6000
+      <li>btmon should be run in server mode like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=server --ip-port 6000
+</pre>
+    </ul>
+</ol>
+</p>
+<p>
+Technically it is the serial-to-ethernet hardware (e.g. WizNET) that has client/server modes - the GEM/ECM communicates via serial with the WizNET, and the WizNET communicates with other devices via TCP/IP.
+</p>
+
+
+<a name="polling-vs-blocking">
+<h2>Polling versus Blocking</h2>
+</a>
+<p>
+btmon can either accept real-time packets from the GEM/ECM (the GEM/ECM must be in real-time mode) or it can poll for data (the GEM/ECM must *not* be in real-time mode).
+</p>
+<p>
+The polling mode is useful if there are multiple computers that need to communicate with a single GEM/ECM.  In most cases btmon should be in blocking mode, accepting real-time packets from the GEM/ECM.
+</p>
+<p>
+Polling is specified with the <code>--serial-poll-interval=X</code> (for serial connections) or <code>--ip-poll-interval=X</code> (for TCP/IP connections) option.
+</p>
+
+
+
+<a name="multiplexing">
+<h2>Multiplexing</h2>
+</a>
+<p>
+Multiple GEM/ECM can share a single serial connection.  For example, up to 4 ECM-1240 can be connected to one serial port, or multiple GEM can be connected to a single WizNET.
+</p>
+<p>
+Although multiplexing is possible, it is not encouraged.  When devices are multiplexed they are prone to cause contention - the result is packet loss.  Instead of reliably receiving a packet every 10 seconds, the data collector may experience periods of multiple minutes where no data are received.
+</p>
+<p>
+btmon cannot communicate with multiple device types on a single connection.  For example, if a GEM and ECM-1240 are both connect to a single WizNET, btmon can collect from one or the other but not both.  If the GEM emits ECM binary packets then btmon can collect from both devices, but this configuration is not encouraged.
+</p>
+<p>
+When polling multiplexed devices, a list of one or more device identifiers must be specified.  The identifiers for the ECM-1240 are 0xfc, 0xfd, 0xfe, or 0xff.  The identifier for the GEM is the serial number.
+</p>
+
+
+
+<p>&nbsp;</p>
+<h1>Example Configurations</h1>
+
+
+
+<a name="btmon-on-a-router">
+<h2>Run btmon on a router</h2>
+</a>
+<p>
+This example shows how to run btmon on an ASUS router with Tomato USB, collecting data from a Green-Eye Monitor attached via ethernet and uploading data to COSM (pachube).
+</p>
+<p>
+Hardware: ASUS N16 router<br/>
+Software: Tomato USB v1.28 with optware<br/>
+</p>
+<ol>
+<li>Install TomatoUSB
+<li>Install optware on USB drive on the router
+<li>Put the GEM into server mode, listening on port 5000
+<li>Set the GEM packet type to Green-Eye Binary with Date
+<li>Put the GEM into real-time mode, emitting a packet every 30 seconds
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --ip --ip-mode=client --ip-host=X.X.X.X --ip-port=5000 --print
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+ip_read = true
+ip_host = X.X.X.X
+ip_port = 5000
+ip_mode = client
+[pachube]
+pachube_out = true
+pbe_token = ZZZZZ
+pbe_feed = YYYYY
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+<li>Configure btmon to run on startup (see the optware documentation)
+</ol>
+
+
+<a name="btmon-on-windows">
+<h2>Run btmon on Windows</h2>
+</a>
+<p>
+This example shows how to run btmon on Windows, collecting data from an ECM-1240 attached by serial to COM1 and uploading data to emoncms.
+</p>
+<ol>
+<li>Install pre-requisites:
+<blockquote>
+<dl>
+<dt>Python 2.7
+<dd><a href="http://python.org/download/windows">http://python.org/download/windows</a>
+<dt>pyserial (for reading from serial port)
+<dd><a href="http://sourceforge.net/projects/pyserial/files/pyserial">http://sourceforge.net/projects/pyserial/files/pyserial</a>
+</blockquote>
+<li>Install btmon:
+<pre class='block_text'>
+mkdir c:/Program Files/btmon/bin
+copy btmon-x.y.z.py c:/Program Files/btmon/bin/btmon.py
+</pre>
+<li>Put the ECM-1240 into real-time mode, emitting a packet every 10 seconds
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --serial --serial-port=COM1 --print
+</pre>
+<li>Create a configuration file config.cfg:
+<pre class='block_text'>
+[source]
+serial_read = true
+serial_port = COM1
+[oem]
+oem_out = false
+oem_url=http://emoncms.org/input/post
+oem_token = XXXXXX
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+<a name="rrd-ecm1240">
+<h2>Save to RRD from ECM-1240 connected via USB/serial</h2>
+</a>
+<p>
+This example shows how to run btmon on a Linux system, collecting data from an ECM-1240 attached by USB-serial adapter to /dev/ttyUSB0 and saving to RRD files on local disk.
+</p>
+<ol>
+<li>Put the ECM-1240 into real-time mode, emitting a packet every 10 seconds
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --serial --serial-port=/dev/ttyUSB0 --print
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = ecm1240
+serial_read = true
+serial_port = /dev/ttyUSB0
+[rrd]
+rrd_out = true
+rrd_dir = /var/rrd
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+<a name="seg-gem">
+<h2>Upload to Smart Energy Groups from GEM connected via ethernet</h2>
+</a>
+<p>
+This example shows how to run btmon, collecting data from a Green-Eye Monitor attached by ethernet and uploading data to Smart Energy Groups.
+</p>
+<ol>
+<li>Put the GEM into server mode, listening on port 5000
+<li>Set the GEM packet type to Green-Eye Binary with Date
+<li>Put the GEM into real-time mode, emitting a packet every 45 seconds
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=client --ip-host=X.X.X.X --ip-port=5000 --print
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+ip_read = true
+ip_host = X.X.X.X
+ip_port = 5000
+ip_mode = client
+[seg]
+smartenergygroups_out = true
+seg_upload_period = 180
+seg_token = XXXXXXX
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+
+<a name="mysql-gem">
+<h2>Save to MySQL Database from GEM connected via USB/serial</h2>
+</a>
+<p>
+This example shows how to run btmon, collecting data from a Green-Eye Monitor attached by USB-serial adapter to /dev/ttyUSB0 and saving to local MySQL database.
+</p>
+<ol>
+<li>Set the GEM packet type to Green-Eye Binary with Date
+<li>Put the GEM into real-time mode, emitting a packet every 30 seconds
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --serial --serial-port=/dev/ttyUSB0 --print
+</pre>
+<li>Configure mysql
+<pre class='block_text'>
+# mysql -u root -p
+mysql> create user gemuser identified by 'gempass';
+mysql> grant usage on gem.* to gemuser@localhost identified by 'gempass';
+mysql> grant all privileges on gem.* to gemuser@localhost;
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+serial_read = true
+serial_port = /dev/ttyUSB0
+[mysql]
+mysql_out = true
+mysql_user = gemuser
+mysql_passwd = gempass
+mysql_database = gem
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+
+<a name="multiple-gem">
+<h2>Collect data from multiple GEM devices via TCP/IP with btmon in server mode</h2>
+</a>
+<p>
+This example shows how to run btmon in server mode, collecting data from two Green-Eye Monitors via TCP/IP.  In this example, btmon runs on a computer with IP address 192.168.X.Y.
+</p>
+<ol>
+<li>On the first GEM, set the packet type to Green-Eye Binary with Date
+<li>Put the GEM into real-time mode, emitting a packet every 30 seconds
+<li>Configure the GEM to run in client mode with server at 192.168.X.Y and port 2000
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=server --ip-port=2000 --print
+</pre>
+<li>Configure the second GEM as the first (binary packet, real-time, client)
+<li>Check the btmon output to ensure that it is receiving data from both GEMs
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+ip_read = true
+ip_port = 2000
+ip_mode = server
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+
+<a name="multiple-ecm-blocking">
+<h2>Collect data from multiple ECM devices via serial</h2>
+</a>
+<p>
+This example shows how to run btmon, collecting data from two ECM-1240 via a single serial.
+</p>
+<ol>
+<li>Enable real-time mode on each ECM-1240 with a period of 30 seconds
+<li>Check communication with the ECM by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=ecm1240 --serial --serial-port=/dev/ttyUSB0 --print
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = ecm1240
+serial_read = true
+serial_port = /dev/ttyUSB0
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+
+<a name="multiple-ecm-polling">
+<h2>Collect data from multiple ECM devices via serial with polling</h2>
+</a>
+<p>
+This example shows how to run btmon, collecting data from two ECM-1240 via a single serial using polling.
+</p>
+<ol>
+<li>Disable real-time mode on each ECM-1240
+<li>Set the command byte on the first ECM-1240 to fc
+<li>Set the command byte on the second ECM-1240 to fd
+<li>Check communication with the first ECM by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=ecm1240 --serial --serial-port=/dev/ttyUSB0 --serial-poll-interval=30 --device-list=fc --print
+</pre>
+<li>Check communication with the second ECM by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=ecm1240 --serial --serial-port=/dev/ttyUSB0 --serial-poll-interval=30 --device-list=fd --print
+</pre>
+<li>Check communication with the both ECM by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=ecm1240 --serial --serial-port=/dev/ttyUSB0 --serial-poll-interval=30 --device-list=fc,fd --print
+</pre>
+<li>Put this into the file config.cfg:
+<pre class='block_text'>
+[source]
+device_type = ecm1240
+serial_read = true
+serial_port = /dev/ttyUSB0
+serial_poll_interval = 30
+device_list = fc,fd
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c config.cfg
+</pre>
+</ol>
+
+
+
+<a name="multiple-btmon">
+<h2>Run multiple instances of btmon</h2>
+</a>
+<p>
+This example shows how to run two instances of btmon.  The first instance collects data from a GEM and saves data to a local sqlite database.  The second instance collects data from the database and uploads to Smart Energy Groups, OpenEnergyMonitor, and COSM.
+</p>
+<p>
+First configure the collect instance:
+</p>
+<ol>
+<li>Put the GEM into real-time mode, emitting a packet every 30 seconds
+<li>Configure the GEM to run in server mode listening on port 5000
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=client --ip-port=5000 --print
+</pre>
+<li>Verify that saving to sqlite works like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --ip --ip-mode=client --ip-port=5000 --sqlite
+</pre>
+<li>Put this into the file collect.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+ip_read = true
+ip_port = 5000
+[sqlite]
+sqlite_out = true
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c collect.cfg
+</pre>
+</ol>
+<p>
+Configure and test the Smart Energy Groups upload:
+</p>
+<ol>
+<li>Set up an account at SmartEnergyGroups using the instructions in btmon.py
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --sqlite-src --smartenergygroups-out --seg-token=SEG_TOKEN
+</pre>
+<li>Verify that data are uploaded to Smart Energy Groups
+</ol>
+<p>
+Configure and test the Open Energy Monitor upload:
+</p>
+<ol>
+<li>Set up an account at OpenEnergyMonitor using the instructions in btmon.py
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --sqlite-src --oem-out --oem-token=OEM_TOKEN
+</pre>
+<li>Verify that data are uploaded to OpenEnergyMonitor
+</ol>
+<p>
+Configure and test the COSM upload:
+</p>
+<ol>
+<li>Set up an account at COSM using the instructions in btmon.py
+<li>Do a quick test by running btmon like this:
+<pre class='block_text'>
+btmon.py --device-type=gem --sqlite-src --pachube-out --pbe-token=COSM_TOKEN
+</pre>
+<li>Verify that data are uploaded to COSM
+</ol>
+<p>
+When testing the uploads, it might help to specify the <code>--debug</code> option.
+</p>
+<p>
+Put it all together:
+</p>
+<ol>
+<li>Put this into the file upload.cfg:
+<pre class='block_text'>
+[source]
+device_type = gem
+sqlite_read = true
+[seg]
+smartenergygroups_out = true
+seg_token = SEG_TOKEN
+[oem]
+oem_out = true
+oem_token = OEM_TOKEN
+[cosm]
+pachube_out = true
+pbe_token = COSM_TOKEN
+</pre>
+<li>Start btmon like this:
+<pre class='block_text'>
+btmon.py -c upload.cfg
+</pre>
+</ol>
+
+
+<p>&nbsp;</p>
+
+<p class="copyright">
+Copyright &copy; Matthew Wall, all rights reserved<br/>
+$Id: btmon-howto.html 540 2013-03-06 14:21:45Z mwall $<br/>
+Last modified: <!--#echo var="LAST_MODIFIED" -->
+</p>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+/var/log/btmon*.log {
+  size 10M
+  rotate 4
+  missingok
+  compress
+  delaycompress
+  notifempty
+  create
+  postrotate
+    /etc/init.d/btmon restart
+  endscript
+}

@@ -1,0 +1,46 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		btmon
+# Required-Start:	$syslog
+# Required-Stop:	$syslog
+# Should-Start:		$local_fs
+# Should-Stop:		$local_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Starts btmon
+# Description:		btmon collects data from brultech energy monitor
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+APP=/opt/mtools/bin/btmon.py
+PIDFILE=/var/run/btmon.pid
+LOGFILE=/var/log/btmon.log
+
+set -e
+
+case "$1" in
+    start)
+    echo -n "Starting btmon:"
+    $APP --ip --ip-host 192.168.3.61 --ip-port 5000 --ip-mode client --rrd --quiet >> $LOGFILE 2>&1 &
+    pid=$!
+    echo $pid > $PIDFILE
+    echo
+    ;;
+
+    stop)
+    echo -n "Shutting down btmon:"
+    if [ -f $PIDFILE ]; then
+        kill `cat $PIDFILE`
+        rm $PIDFILE
+    fi
+    echo
+    ;;
+    
+    *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

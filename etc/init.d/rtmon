@@ -1,0 +1,46 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		rtmon
+# Required-Start:	$syslog
+# Required-Stop:	$syslog
+# Should-Start:		$local_fs
+# Should-Stop:		$local_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Starts rtmon
+# Description:		rtmon collects data from radio thermostat devices
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+APP=/opt/mtools/bin/rtmon.py
+PIDFILE=/var/run/rtmon.pid
+LOGFILE=/var/log/rtmon.log
+
+set -e
+
+case "$1" in
+    start)
+    echo -n "Starting rtmon:"
+    $APP --ip --ip-host 192.168.3.61 --rrd --quiet >> $LOGFILE 2>&1 &
+    pid=$!
+    echo $pid > $PIDFILE
+    echo
+    ;;
+
+    stop)
+    echo -n "Shutting down rtmon:"
+    if [ -f $PIDFILE ]; then
+        kill `cat $PIDFILE`
+        rm $PIDFILE
+    fi
+    echo
+    ;;
+    
+    *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

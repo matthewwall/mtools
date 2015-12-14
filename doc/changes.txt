@@ -1,0 +1,29 @@
+1.1.3 06mar2015
+- btmon 3.1.1
+
+1.1.2 12feb2015
+- btmon 3.1.0
+- rtmon 0.2.1
+- edsmon 0.2.1
+- tedmon 0.2.1
+- btcfg 0.2.3
+
+1.0.3 31jan2014
+- btmon 3.0.7
+- rtmon 0.2.0
+- edsmon 0.2.0
+
+1.0.2
+- btmon 3.0.6
+- btcfg 2.2.2
+- fix stderr/stdout handling in rc scripts
+
+1.0.1 26dec2012
+- btmon 3.0.5
+
+1.0.0 26dec2012
+- initial release of monitoring tools as a package
+- initial release of rtmon.py
+- initial release of edsmon.py
+- initial release of tedmon.py
+- added support for pvoutput to btmon.py

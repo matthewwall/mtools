@@ -1,0 +1,91 @@
+<html>
+<head>
+<title>best practices</title>
+<!-- Copyright Matthew Wall, all rights reserved -->
+<link href="styles.css" rel="stylesheet" type="text/css" />
+<style type="text/css">
+.block_heading {
+  font-weight: bold;
+}
+.block_text {
+  background-color: #eeeeee;
+  border: 1px solid #dddddd;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+table {
+  padding-left: 20px;
+}
+</style>
+</head>
+
+<body>
+
+
+
+<h2>Tips</h2>
+<p>
+Figure out what you want to measure.  For example:
+<ul>
+<li>determine power consumption of various devices/circuites
+<li>identify vampire devices
+<li>correlate power consumption with temperatures
+<li>correlate power consumption with occupancy
+</ul>
+</p>
+<p>
+Create a map of the system.  Identify and label each circuit.
+</p>
+<p>
+Be consistent with the wiring to ensure correct polarity.  Polarity is determined by a number of things:
+<ul>
+<li>location of load relative to breaker
+<li>single leg 110V circuit vs two legs of 220V circuit
+<li>orientation of the CT
+<li>location of CT leads
+<li>polarity setting within the GEM
+</ul>
+</p>
+<p>
+Determine how much data you need to store.  Determine how much data you can store.
+</p>
+<p>
+btmon works only with Python 2, not Python 3.
+</p>
+
+
+
+
+
+
+- create a map.  circuit/channel/label
+
+- label the wires
+
+- polarity.  be consistent with wiring.  options to change polarity later - geometry, leads, gem polarity setting per channel, btmon
+
+- figure out what you want to measure.  here are typical scenarios:
+ - power on major energy consumers
+ - vampire devices
+ - exterior temperature, interior temperature, heat/cool equipment power, tstat
+
+- how much data can you store?
+
+- decide on a configuration.  here are a few typical:
+ - router that uploads to servers
+ - everything on a router (asus n16 running tomato with an external hd)
+ - everything on a dedicated computer (nimbus with flash drive)
+ - view on cell phone, tablet, computer
+
+developer issues
+
+- counter wraparound
+- counter reset
+- polarity
+- differential versus cumulative calculations
+- what to store (diff vs cumulative)
+- how often to sample, how many samples to store, how often to upload
+- ability to read all settings, change all settings
+
+</body>
+</html>

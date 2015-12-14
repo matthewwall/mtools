@@ -1,0 +1,12 @@
+/var/log/btmon*.log /var/log/rtmon*.log /var/log/edsmon*.log /var/log/tedmon*.log {
+  size 10M
+  rotate 4
+  missingok
+  compress
+  delaycompress
+  notifempty
+  create
+  postrotate
+    /etc/init.d/mtools restart
+  endscript
+}

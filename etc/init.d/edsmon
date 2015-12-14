@@ -1,0 +1,46 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		edsmon
+# Required-Start:	$syslog
+# Required-Stop:	$syslog
+# Should-Start:		$local_fs
+# Should-Stop:		$local_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Starts edsmon
+# Description:		edsmon collects data from eds one-wire server
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+APP=/opt/mtools/bin/edsmon.py
+PIDFILE=/var/run/edsmon.pid
+LOGFILE=/var/log/edsmon.log
+
+set -e
+
+case "$1" in
+    start)
+    echo -n "Starting edsmon:"
+    $APP --ip --ip-host 192.168.3.61 --rrd --quiet >> $LOGFILE 2>&1 &
+    pid=$!
+    echo $pid > $PIDFILE
+    echo
+    ;;
+
+    stop)
+    echo -n "Shutting down edsmon:"
+    if [ -f $PIDFILE ]; then
+        kill `cat $PIDFILE`
+        rm $PIDFILE
+    fi
+    echo
+    ;;
+    
+    *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

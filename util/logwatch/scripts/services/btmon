@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+# $Id$
+# logwatch script to process btmon log files
+# Copyright 2013 Matthew Wall
+#
+# Revision History
+#  0.1 25feb13
+#   * initial release
+
+use strict;
+
+my %ERROR_CODES = (
+    -2, 'Name or service not known',
+    104, 'connection reset by peer',
+    110, 'Connection timed out',
+    111, 'connection refused',
+    113, 'No route to host',
+    400, 'Bad Request',
+    404, 'Not Found',
+    500, 'Internal Server Error',
+    502, 'Bad Gateway',
+    503, 'Service Temporarily Unavailable',
+    );
+
+my %counts = ();
+my @unmatched = ();
+
+while(defined($_ = <STDIN>)) {
+    chomp;
+    if (/(\S+)Processor .*HTTP Error ([0-9]+)/) {
+        $counts{$1 . q(.) . $2} += 1;
+    } elsif (/(\S+)Processor .*Errno ([0-9\-]+)/) {
+        $counts{$1 . q(.) . $2} += 1;
+    } elsif (/(\S+)Processor Error: ([0-9\-]+)/) {
+        $counts{$1 . q(.) . $2} += 1;
+    } elsif (/(\S+)Processor .*urlopen error timed out/) {
+        $counts{$1 . '.urlopen timed out'} += 1;
+    } elsif (/(\S+)Processor .*urlopen error timed out/) {
+        $counts{$1 . '.urlopen timed out'} += 1;
+    } elsif (/(\S+)Processor .*urlopen error.*The handshake operation timed/) {
+        $counts{$1 . '.urlopen handshake timed out'} += 1;
+    } elsif (/(\S+)Processor .*urlopen error.*The read operation timed/) {
+        $counts{$1 . '.urlopen read timed out'} += 1;
+    } elsif (/(\S+)Processor .*urlopen error.*The write operation timed/) {
+        $counts{$1 . '.urlopen write timed out'} += 1;
+    } elsif (/(\S+)Processor .*server fail/) {
+        $counts{$1 . '.server fail'} += 1;
+    } elsif (/(\S+)Processor Error:.*html/) {
+        # ignore - older btmon error formatting
+    } elsif (/(\S+)Processor Error: $/) {
+        $counts{$1 . '.unknown'} += 1;
+    } elsif (/ignore this line/) {
+        # ignore
+    } else {
+        push @unmatched, $_;
+    }
+}
+
+print "upload error counts:\n";
+foreach my $k (sort keys %counts) {
+    next if $counts{$k} == 0;
+    my($s,$e) = $k =~ /([^.]+).(.*)/;
+    my $label = $s . ': ' . geterrmsg($e);
+    printf("  %-50s %6d\n", $label, $counts{$k});
+}
+
+report("unmatched lines", \@unmatched) if $#unmatched >= 0;
+
+exit 0;
+
+sub report {
+    my($label, $aref, $href) = @_;
+    print "\n$label:\n";
+    foreach my $x (@$aref) {
+        my $str = $x;
+        if ($href && $href->{$x} > 1) {
+            $str .= " ($href->{$x} times)";
+        }
+        print "  $str\n";
+    }
+}
+
+sub geterrmsg {
+    my($code) = @_;
+    return $ERROR_CODES{$code} ? $ERROR_CODES{$code} . " ($code)" : $code;
+}

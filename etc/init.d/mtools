@@ -1,0 +1,108 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		mtools
+# Required-Start:	$syslog
+# Required-Stop:	$syslog
+# Should-Start:		$local_fs
+# Should-Stop:		$local_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Starts mtools
+# Description:		mtools collect data from various sensors
+### END INIT INFO
+
+START_BTMON=1
+START_RTMON=0
+START_EDSMON=0
+START_TEDMON=0
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MTOOLS=/opt/mtools
+RUNDIR=/var/run
+LOGDIR=/var/log
+
+BTMON=$MTOOLS/bin/btmon.py
+BTMON_CFGFILE=$MTOOLS/etc/btmon.cfg
+BTMON_PIDFILE=$RUNDIR/btmon.pid
+BTMON_LOGFILE=$LOGDIR/btmon.log
+
+RTMON=$MTOOLS/bin/rtmon.py
+RTMON_CFGFILE=$MTOOLS/etc/rtmon.cfg
+RTMON_PIDFILE=$RUNDIR/rtmon.pid
+RTMON_LOGFILE=$LOGDIR/rtmon.log
+
+EDSMON=$MTOOLS/bin/edsmon.py
+EDSMON_CFGFILE=$MTOOLS/etc/edsmon.cfg
+EDSMON_PIDFILE=$RUNDIR/edsmon.pid
+EDSMON_LOGFILE=$LOGDIR/edsmon.log
+
+TEDMON=$MTOOLS/bin/tedmon.py
+TEDMON_CFGFILE=$MTOOLS/etc/tedmon.cfg
+TEDMON_PIDFILE=$RUNDIR/tedmon.pid
+TEDMON_LOGFILE=$LOGDIR/tedmon.log
+
+set -e
+
+case "$1" in
+    start)
+    echo -n "Starting mtools:"
+    if $START_BTMON; then
+        $BTMON -c $BTMON_CFGFILE --quiet >> $BTMON_LOGFILE 2>&1 &
+        pid=$!
+        echo $pid > $BTMON_PIDFILE
+        echo -n " btmon"
+    fi
+    if $START_RTMON; then
+        $RTMON -c $RTMON_CFGFILE --quiet >> $RTMON_LOGFILE 2>&1 &
+        pid=$!
+        echo $pid > $RTMON_PIDFILE
+        echo -n " rtmon"
+    fi
+    if $START_EDSMON; then
+        $EDSMON -c $EDSMON_CFGFILE --quiet >> $EDSMON_LOGFILE 2>&1 &
+        pid=$!
+        echo $pid > $EDSMON_PIDFILE
+        echo -n " edsmon"
+    fi
+    if $START_TEDMON; then
+        $TEDMON -c $TEDMON_CFGFILE --quiet >> $TEDMON_LOGFILE 2>&1 &
+        pid=$!
+        echo $pid > $TEDMON_PIDFILE
+        echo -n " tedmon"
+    fi
+    echo
+    ;;
+
+    stop)
+    echo -n "Shutting down mtools:"
+    if [ -f $BTMON_PIDFILE ]; then
+        kill `cat $BTMON_PIDFILE`
+        rm $BTMON_PIDFILE
+        echo -n " btmon"
+    fi
+    if [ -f $RTMON_PIDFILE ]; then
+        kill `cat $RTMON_PIDFILE`
+        rm $RTMON_PIDFILE
+        echo -n " rtmon"
+    fi
+    if [ -f $EDSMON_PIDFILE ]; then
+        kill `cat $EDSMON_PIDFILE`
+        rm $EDSMON_PIDFILE
+        echo -n " edsmon"
+    fi
+    if [ -f $TEDMON_PIDFILE ]; then
+        kill `cat $TEDMON_PIDFILE`
+        rm $TEDMON_PIDFILE
+        echo -n " tedmon"
+    fi
+    echo
+    ;;
+    
+    *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0
