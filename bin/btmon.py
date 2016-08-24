@@ -1202,6 +1202,18 @@ MQTT_RETAIN            = False
 MQTT_MAP               = ''
 MQTT_UPLOAD_PERIOD     = MINUTE
 
+# InfluxDB defaults
+#   Minimum upload interval is 60 seconds.
+#   Recommended sampling interval is 2 to 30 seconds.
+INFLUXDB_HOST = 'localhost'
+INFLUXDB_PORT = '8086'
+INFLUXDB_UPLOAD_PERIOD = 1 * MINUTE
+INFLUXDB_TIMEOUT = 60 # seconds
+INFLUXDB_USERNAME = ''
+INFLUXDB_PASSWORD = ''
+INFLUXDB_DATABASE = ''
+INFLUXDB_MEASUREMENT = ''
+INFLUXDB_MAP = ''
 
 import base64
 import bisect
@@ -1215,6 +1227,7 @@ import time
 import traceback
 import urllib
 import urllib2
+from influxdb import InfluxDBClient
 
 import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning) # MySQLdb in 2.6
@@ -1719,7 +1732,7 @@ class ECM1220BinaryPacket(ECMBinaryPacket):
         c1 = self._getresetcounter(now['flag'])
         if c1 != c0:
             raise CounterResetError("old: %d new: %d" % (c0, c1))
-        
+
         ret = now
         ds = self._calc_secs(ret, prev)
         self._calc_pe('ch1', ds, ret, prev)
@@ -2097,7 +2110,7 @@ class ECMReadSchema(BaseSchema):
         sql.append(','.join(values))
         sql.append(')')
         return ''.join(sql), len(values), p['serial'], p['time_created']
-        
+
 
 class ECMReadExtSchema(BaseSchema):
     def __init__(self):
@@ -2803,7 +2816,7 @@ class DatabaseProcessor(BaseProcessor):
             cursor.execute(''.join(sql))
             cursor.close()
             infmsg('DB: inserted %d values for %s at %s' % (nval, sn, ts))
-        self.conn.commit()        
+        self.conn.commit()
 
 
 class MySQLClient(object):
@@ -3549,7 +3562,7 @@ class PeoplePowerProcessor(UploadProcessor):
 
     def _urlopen(self, url, s):
         s.insert(0, '<?xml version="1.0" encoding="UTF-8" ?>')
-        s.insert(1, '<h2s ver="2" hubId="%s" seq="%d">' % 
+        s.insert(1, '<h2s ver="2" hubId="%s" seq="%d">' %
                  (self.hub_id, self.nonce))
         s.append('</h2s>')
         result = super(PeoplePowerProcessor, self)._urlopen(url, ''.join(s))
@@ -3757,7 +3770,7 @@ class ThingSpeakProcessor(UploadProcessor):
                     if result and result.read:
                         resp = result.read()
                         if resp == 0:
-                            wrnmsg('TS: upload failed for %s: %s' % (ecm_serial, resp))                        
+                            wrnmsg('TS: upload failed for %s: %s' % (ecm_serial, resp))
                     else:
                         wrnmsg('TS: upload failed for %s' % ecm_serial)
             else:
@@ -4149,6 +4162,62 @@ class MQTTProcessor(BaseProcessor):
            dbgmsg('MQTT: Nothing to send')
 
 
+class InfluxDBProcessor(UploadProcessor):
+    def __init__(self, host, port, username, password, database, measurement, map_str, period, timeout):
+        super(InfluxDBProcessor, self).__init__()
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
+        self.measurement = measurement
+        self.map_str = map_str
+        self.process_period = int(period)
+        self.timeout = int(timeout)
+        self.map = dict()
+
+        infmsg('InfluxDB: upload period: %d' % self.process_period)
+        infmsg('InfluxDB: host: %s' % self.host)
+        infmsg('InfluxDB: port: %s' % self.port)
+        infmsg('InfluxDB: username: %s' % self.username)
+        infmsg('InfluxDB: map: %s' % self.map_str)
+
+    def setup(self):
+        self.map = pairs2dict(self.map_str)
+
+    def process_calculated(self, packets):
+        sensors = dict()
+        readings = dict()
+        series = []
+        for p in packets:
+            for c in ('volts', 'ch1_aws', 'ch2_aws', 'aux1_ws', 'aux2_ws', 'aux3_ws', 'aux4_ws', 'aux5_ws'):
+                dev_serial = obfuscate_serial(p['serial'])
+                key = mklabel(p['serial'], c)
+                if key in self.map:
+                    tpl = self.map[key]
+                    dev_tag = tpl['tag']
+                else:
+                    dev_tag = c
+                values = {
+                    "measurement": self.measurement,
+                    "time": mkts(p['time_created']),
+                    'fields':  {
+                       'value': p[c] * 1.0,
+                    },
+                    'tags': {
+                       "serial": dev_serial,
+                       "id": dev_tag,
+                    },
+                }
+                series.append(values)
+        client = InfluxDBClient(self.host, self.port, self.username, self.password, self.database)
+        try:
+                client.create_database(self.database)
+        except:
+                pass
+        client.write_points(series)
+
+
 if __name__ == '__main__':
     parser = optparse.OptionParser(version=__version__)
 
@@ -4369,6 +4438,19 @@ if __name__ == '__main__':
     group.add_option('--mqtt-tls', help='tls credentials', metavar='{"ca_certs":"<ca_certs>", "certfile":"<certfile>", "keyfile":"<keyfile>", "tls_version":"<tls_version>", "ciphers":"<ciphers>"}')
     group.add_option('--mqtt-map', help='channel-to-topic mapping', metavar='<channel-1>,<topic-1>,...<channel-n>,<topic-n>')
     group.add_option('--mqtt-upload-period', type='int', help='upload period in seconds', metavar='PERIOD')
+
+    group = optparse.OptionGroup(parser, 'InfluxDB options')
+    group.add_option('--influxdb', action='store_true', dest='influxdb_out', default=False, help='upload data to InfluxBD'
+)
+    group.add_option('--influxdb-username', help='username', metavar='USERNAME')
+    group.add_option('--influxdb-password', help='password', metavar='PASSWORD')
+    group.add_option('--influxdb-host', help='HOST', metavar='HOST')
+    group.add_option('--influxdb-port', help='PORT', metavar='PORT')
+    group.add_option('--influxdb-database', help='DATABASE', metavar='DATABASE')
+    group.add_option('--influxdb-measurement', help='MEASUREMENT', metavar='MEASUREMENT')
+    group.add_option('--influxdb-map', help='channel-to-device mapping', metavar='MAP')
+    group.add_option('--influxdb-upload-period', help='upload period in seconds', metavar='PERIOD')
+    group.add_option('--influxdb-timeout', help='timeout period in seconds', metavar='TIMEOUT')
     parser.add_option_group(group)
 
     (options, args) = parser.parse_args()
@@ -4563,12 +4645,14 @@ if __name__ == '__main__':
             options.peoplepower_out or options.eragy_out or
             options.smartenergygroups_out or options.thingspeak_out or
             options.pachube_out or options.oem_out or
-            options.wattvision_out or options.pvo_out or options.mqtt_out):
+            options.wattvision_out or options.pvo_out or options.mqtt_out or
+            options.influxdb_out):
         print 'Please specify one or more processing options (or \'-h\' for help):'
         print '  --print              print to screen'
         print '  --mysql              write to mysql database'
         print '  --sqlite             write to sqlite database'
         print '  --rrd                write to round-robin database'
+        print '  --influxdb           write to influxdb database'
         print '  --bidgely            upload to Bidgely'
         print '  --enersave           upload to EnerSave (deprecated)'
         print '  --eragy              upload to Eragy'
@@ -4713,6 +4797,17 @@ if __name__ == '__main__':
                       options.mqtt_tls,
                       options.mqtt_map or MQTT_MAP,
                       options.mqtt_upload_period or MQTT_UPLOAD_PERIOD))
+    if options.influxdb_out:
+        procs.append(InfluxDBProcessor
+                     (options.influxdb_host or INFLUXDB_HOST,
+                      options.influxdb_port or INFLUXDB_PORT,
+                      options.influxdb_username or INFLUXDB_USERNAME,
+                      options.influxdb_password or INFLUXDB_PASSWORD,
+                      options.influxdb_database or INFLUXDB_DATABASE,
+                      options.influxdb_measurement or INFLUXDB_MEASUREMENT,
+                      options.influxdb_map or INFLUXDB_MAP,
+                      options.influxdb_upload_period or INFLUXDB_UPLOAD_PERIOD,
+                      options.influxdb_timeout or INFLUXDB_TIMEOUT))
 
     mon = Monitor(col, procs)
     mon.run()
