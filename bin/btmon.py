@@ -9,7 +9,7 @@ Includes support for uploading to the following services:
   * MyEnerSave     * SmartEnergyGroups   * xively         * WattzOn
   * PlotWatt       * PeoplePower         * thingspeak     * Eragy
   * emoncms        * Wattvision          * PVOutput       * Bidgely
-  * MQTT
+  * MQTT           * InfluxDB
 
 Thanks to:
   Amit Snyderman <amit@amitsnyderman.com>
@@ -215,6 +215,32 @@ For a single GEM with 48 channels, 4 pulse counters, and 8 one-wire sensors,
 this is a total of about 162M for 2 years of data.  On an arm-based plug
 computer reading/writing to a very slow usb drive, a single update takes about
 45 seconds for 108 RRD files.
+
+
+InfluxDB Configuration:
+
+Connections to InfluxDB require the InfluxDB-Python client. On Debian/Ubuntu,
+you can install it with
+
+  apt-get install python-influxdb
+
+Otherwise, you can run
+
+  pip install influxdb
+
+This uses the InfluxDB HTTP API, which by default runs on port 8086. You must
+specify the database and measurement to write to.
+
+[influxdb]
+influxdb_out = true
+influxdb_host = localhost           # default
+influxdb_port = 8086                # default
+influxdb_upload_period = 60         # default
+influxdb_username = btmon           # if using authentication
+influxdb_password = abcde           # if using authentication
+influxdb_database = btmon           # required
+influxdb_measurement = energy       # required
+influxdb_map = 1234567_ch1_aws,a,1234567_ch2_aws,b  # renames channels
 
 
 OpenEnergyMonitor Configuration:
@@ -1227,7 +1253,6 @@ import time
 import traceback
 import urllib
 import urllib2
-from influxdb import InfluxDBClient
 
 import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning) # MySQLdb in 2.6
@@ -1274,6 +1299,10 @@ try:
 except ImportError:
     publish = None
 
+try:
+    from influxdb import InfluxDBClient
+except ImportError:
+    InfluxDBClient = None
 
 class CounterResetError(Exception):
     def __init__(self, msg):
@@ -4190,14 +4219,12 @@ class InfluxDBProcessor(UploadProcessor):
         readings = dict()
         series = []
         for p in packets:
-            for c in ('volts', 'ch1_aws', 'ch2_aws', 'aux1_ws', 'aux2_ws', 'aux3_ws', 'aux4_ws', 'aux5_ws'):
-                dev_serial = obfuscate_serial(p['serial'])
+            dev_serial = obfuscate_serial(p['serial'])
+            for c in PACKET_FORMAT.channels(FILTER_DB_SCHEMA_COUNTERS):
                 key = mklabel(p['serial'], c)
-                if key in self.map:
-                    tpl = self.map[key]
-                    dev_tag = tpl['tag']
-                else:
-                    dev_tag = c
+                if self.map and key not in self.map:
+                    continue
+                dev_tag = self.map[key] if key in self.map else c
                 values = {
                     "measurement": self.measurement,
                     "time": mkts(p['time_created']),
@@ -4440,8 +4467,7 @@ if __name__ == '__main__':
     group.add_option('--mqtt-upload-period', type='int', help='upload period in seconds', metavar='PERIOD')
 
     group = optparse.OptionGroup(parser, 'InfluxDB options')
-    group.add_option('--influxdb', action='store_true', dest='influxdb_out', default=False, help='upload data to InfluxBD'
-)
+    group.add_option('--influxdb', action='store_true', dest='influxdb_out', default=False, help='upload data to InfluxBD')
     group.add_option('--influxdb-username', help='username', metavar='USERNAME')
     group.add_option('--influxdb-password', help='password', metavar='PASSWORD')
     group.add_option('--influxdb-host', help='HOST', metavar='HOST')
@@ -4798,6 +4824,9 @@ if __name__ == '__main__':
                       options.mqtt_map or MQTT_MAP,
                       options.mqtt_upload_period or MQTT_UPLOAD_PERIOD))
     if options.influxdb_out:
+        if not InfluxDBClient:
+            print 'InfluxDBClient not loaded, cannot write to InfluxDB'
+            sys.exit(1)
         procs.append(InfluxDBProcessor
                      (options.influxdb_host or INFLUXDB_HOST,
                       options.influxdb_port or INFLUXDB_PORT,
