@@ -870,6 +870,9 @@ SKIP_UPLOAD = 0
 # if set to 1, trust the device's clock
 TRUST_DEVICE_CLOCK = 0
 
+# if set to 1, assume timestamps from the device are in UTC
+DEVICE_CLOCK_IS_UTC = 0
+
 # if set to 1, obfuscate any serial number before uploading
 OBFUSCATE_SERIALS = 1
 
@@ -1112,6 +1115,7 @@ PVO_TEMP_CHANNEL = ''
 
 import base64
 import bisect
+import calendar
 import errno
 import optparse
 import socket
@@ -1878,8 +1882,11 @@ class GEM48PTBinaryPacket(GEM48PBinaryPacket):
             tstr = '20%d.%d.%d %d:%d:%d' % (
                 cpkt['year'], cpkt['mth'], cpkt['day'],
                 cpkt['hr'], cpkt['min'], cpkt['sec'])
-            cpkt['time_created'] = int(time.mktime(time.strptime(
-                        tstr, '%Y.%m.%d %H:%M:%S')))
+            time_tuple = time.strptime(tstr, '%Y.%m.%d %H:%M:%S')
+            if DEVICE_CLOCK_IS_UTC:
+                cpkt['time_created'] = int(calendar.timegm(time_tuple))
+            else:
+                cpkt['time_created'] = int(time.mktime(time_tuple))
 
         return cpkt
 
@@ -3951,6 +3958,7 @@ if __name__ == '__main__':
     parser.add_option('--skip-upload', action='store_true', default=False, help='do not upload data but print what would happen')
     parser.add_option('--buffer-size', help='number of packets to keep in cache', metavar='SIZE')
     parser.add_option('--trust-device-clock', action='store_true', default=False, help='use device clock for packet timestamps')
+    parser.add_option('--utc-device-clock', action='store_true', dest='device_clock_is_utc', default=False, help='device clock is in UTC')
     parser.add_option('--reverse-polarity', default=False, help='reverse polarity on all channels')
     parser.add_option('--device-list', help='comma-separated list of device identifiers', metavar='LIST')
 
@@ -4178,6 +4186,8 @@ if __name__ == '__main__':
         SKIP_UPLOAD = 1
     if options.trust_device_clock:
         TRUST_DEVICE_CLOCK = 1
+    if options.device_clock_is_utc:
+        DEVICE_CLOCK_IS_UTC = 1
     if options.reverse_polarity:
         REVERSE_POLARITY = 1
         infmsg('polarity is reversed')
