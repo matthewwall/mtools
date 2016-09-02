@@ -3953,6 +3953,7 @@ if __name__ == '__main__':
     parser.add_option('--trust-device-clock', action='store_true', default=False, help='use device clock for packet timestamps')
     parser.add_option('--reverse-polarity', default=False, help='reverse polarity on all channels')
     parser.add_option('--device-list', help='comma-separated list of device identifiers', metavar='LIST')
+    parser.add_option('--full-serials', action='store_true', default=False, help='show full serial numbers instead of XXX123')
 
     parser.add_option('--device-type', help='device types include '+', '.join(DEVICE_TYPES)+'; default is '+DEFAULT_DEVICE_TYPE, metavar='TYPE')
     parser.add_option('--packet-format', help='formats include '+', '.join(PACKET_FORMATS), metavar='FMT')
@@ -4181,6 +4182,8 @@ if __name__ == '__main__':
     if options.reverse_polarity:
         REVERSE_POLARITY = 1
         infmsg('polarity is reversed')
+    if options.full_serials:
+        OBFUSCATE_SERIALS = 0
 
     if not options.buffer_size:
         options.buffer_size = DEFAULT_BUFFER_SIZE
