@@ -240,7 +240,9 @@ influxdb_username = btmon           # if using authentication
 influxdb_password = abcde           # if using authentication
 influxdb_database = btmon           # required
 influxdb_measurement = energy       # required
+influxdb_mode = row                 # "row": 1 series w/ many values; "col": many series w/ 1 value each
 influxdb_map = 1234567_ch1_aws,a,1234567_ch2_aws,b  # renames channels
+influxdb_tags = key1,value1,key2,value2             # adds tags
 
 
 OpenEnergyMonitor Configuration:
@@ -1239,7 +1241,9 @@ INFLUXDB_USERNAME = ''
 INFLUXDB_PASSWORD = ''
 INFLUXDB_DATABASE = ''
 INFLUXDB_MEASUREMENT = ''
+INFLUXDB_MODE = 'col'
 INFLUXDB_MAP = ''
+INFLUXDB_TAG_MAP = ''
 
 import base64
 import bisect
@@ -4192,18 +4196,21 @@ class MQTTProcessor(BaseProcessor):
 
 
 class InfluxDBProcessor(UploadProcessor):
-    def __init__(self, host, port, username, password, database, measurement, map_str, period, timeout):
+    def __init__(self, host, port, username, password, database, mode, measurement, map_str, tag_str, period, timeout):
         super(InfluxDBProcessor, self).__init__()
         self.host = host
         self.port = port
         self.username = username
         self.password = password
         self.database = database
+        self.mode = mode
         self.measurement = measurement
         self.map_str = map_str
+        self.tag_str = tag_str
         self.process_period = int(period)
         self.timeout = int(timeout)
         self.map = dict()
+        self.tags = dict()
 
         infmsg('InfluxDB: upload period: %d' % self.process_period)
         infmsg('InfluxDB: host: %s' % self.host)
@@ -4213,6 +4220,7 @@ class InfluxDBProcessor(UploadProcessor):
 
     def setup(self):
         self.map = pairs2dict(self.map_str)
+        self.tags = pairs2dict(self.tag_str)
 
     def process_calculated(self, packets):
         sensors = dict()
@@ -4224,25 +4232,29 @@ class InfluxDBProcessor(UploadProcessor):
                 key = mklabel(p['serial'], c)
                 if self.map and key not in self.map:
                     continue
-                dev_tag = self.map[key] if key in self.map else c
                 values = {
                     "measurement": self.measurement,
                     "time": mkts(p['time_created']),
-                    'fields':  {
-                       'value': p[c] * 1.0,
-                    },
-                    'tags': {
-                       "serial": dev_serial,
-                       "id": dev_tag,
-                    },
                 }
+                if self.mode == 'col':
+                    values['fields'] = {
+                       'value': p[c] * 1.0,
+                    }
+                    values['tags'] = {
+                       "serial": dev_serial,
+                       "id": self.map[key] if key in self.map else c,
+                    }
+                else:
+                    value_name = self.map[key] if key in self.map else mklabel(dev_serial, c)
+                    values['fields'] = {}
+                    values['fields'][value_name] = p[c] * 1.0
                 series.append(values)
         client = InfluxDBClient(self.host, self.port, self.username, self.password, self.database)
         try:
                 client.create_database(self.database)
         except:
                 pass
-        client.write_points(series)
+        client.write_points(series, tags=self.tags)
 
 
 if __name__ == '__main__':
@@ -4473,8 +4485,10 @@ if __name__ == '__main__':
     group.add_option('--influxdb-host', help='HOST', metavar='HOST')
     group.add_option('--influxdb-port', help='PORT', metavar='PORT')
     group.add_option('--influxdb-database', help='DATABASE', metavar='DATABASE')
+    group.add_option('--influxdb-mode', choices=['row', 'col'], help='row (1 series w/ many values) or col (many series w/ 1 value each)', metavar='MODE')
     group.add_option('--influxdb-measurement', help='MEASUREMENT', metavar='MEASUREMENT')
     group.add_option('--influxdb-map', help='channel-to-device mapping', metavar='MAP')
+    group.add_option('--influxdb-tags', help='map of shared tags to add (a,b,c,d adds tag a with value b, tag c with value d)', metavar='MAP')
     group.add_option('--influxdb-upload-period', help='upload period in seconds', metavar='PERIOD')
     group.add_option('--influxdb-timeout', help='timeout period in seconds', metavar='TIMEOUT')
     parser.add_option_group(group)
@@ -4833,8 +4847,10 @@ if __name__ == '__main__':
                       options.influxdb_username or INFLUXDB_USERNAME,
                       options.influxdb_password or INFLUXDB_PASSWORD,
                       options.influxdb_database or INFLUXDB_DATABASE,
+                      options.influxdb_mode or INFLUXDB_MODE,
                       options.influxdb_measurement or INFLUXDB_MEASUREMENT,
                       options.influxdb_map or INFLUXDB_MAP,
+                      options.influxdb_tags or INFLUXDB_TAG_MAP,
                       options.influxdb_upload_period or INFLUXDB_UPLOAD_PERIOD,
                       options.influxdb_timeout or INFLUXDB_TIMEOUT))
 
