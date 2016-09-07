@@ -1,0 +1,19 @@
+#
+# Start btmon.py to monitor Brultech GEM/ECM on system startup
+#
+[Unit]
+Description=btmon data collector for %I
+Documentation=http://lancet.mit.edu/mwall/projects/power/btmon-howto.html
+After=local-fs.target
+Wants=local-fs.target
+AssertFileNotEmpty=/usr/local/mtools/etc/btmon-%I.cfg
+
+[Service]
+Type=simple
+User=btmon
+Group=btmon
+ExecStart=/usr/local/mtools/bin/btmon.py --quiet --config-file=/usr/local/mtools/etc/btmon-%I.cfg
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
