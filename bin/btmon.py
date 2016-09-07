@@ -675,6 +675,8 @@ Changelog:
 * added option to disable serial obfuscation (thanks to mroch)
 * added option for utc clock (thanks to mroch)
 * supress sql warnings (thanks to WaterByWind)
+* added option to include current (thanks to WaterByWind)
+* send volts to open energy monitor (thanks to WaterByWind)
 
 - 3.1.1  06mar15 mwall
 * fixed debug message in SocketServerCollector (thanks to Brian Klass)
@@ -892,6 +894,10 @@ OBFUSCATE_SERIALS = 1
 # match those of brultech software.
 REVERSE_POLARITY = 0
 
+# the gem includes an option to include current values in packets.  if this is
+# enabled in the gem, then enable it here to process the current values.
+INCLUDE_CURRENT = 0
+
 # number of retries to attempt when reading device, 0 means retry forever
 READ_RETRIES = 0
 
@@ -937,6 +943,7 @@ DEFAULT_DB_SCHEMA = DB_SCHEMA_COUNTERS
 
 # channel filters
 FILTER_PE_LABELS = 'pelabels'
+FILTER_CURRENT = 'current'
 FILTER_POWER = 'power'
 FILTER_ENERGY = 'energy'
 FILTER_PULSE = 'pulse'
@@ -1760,6 +1767,9 @@ class GEM48PBinaryPacket(BasePacket):
         if fltr == FILTER_PE_LABELS:
             for x in range(1, self.NUM_CHAN + 1):
                 c.append('ch%d' % x)
+        elif fltr == FILTER_CURRENT:
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_a' % x)
         elif fltr == FILTER_POWER:
             for x in range(1, self.NUM_CHAN + 1):
                 c.append('ch%d_w' % x)
@@ -1802,7 +1812,10 @@ class GEM48PBinaryPacket(BasePacket):
         # Device Information (1 byte)
         cpkt['unit_id'] = self._convert(rpkt[485:486])
 
-        # Reserved (96 bytes)
+        # Current (2 bytes each)
+        if INCLUDE_CURRENT:
+            for x in range(1, self.NUM_CHAN+1):
+                cpkt['ch%d_a' % x] = 0.02 * self._convert(rpkt[486+2*(x-1):486+2*x])
 
         # Seconds (3 bytes)
         cpkt['secs'] = self._convert(rpkt[582:585])
@@ -1818,7 +1831,7 @@ class GEM48PBinaryPacket(BasePacket):
         for x in range(1, self.NUM_SENSE + 1):
             cpkt['t%d' % x] = self._mktemperature(rpkt[597+2*(x-1):597+2*x])
 
-        # Spare (2 bytes)
+        # Footer (2 bytes)
 
         # Add the current time as the timestamp
         cpkt['time_created'] = getgmtime()
@@ -1855,7 +1868,10 @@ class GEM48PBinaryPacket(BasePacket):
         print ts+": Serial: %s" % p['serial']
         print ts+": Voltage: % 6.2fV" % p['volts']
         for x in range(1, self.NUM_CHAN + 1):
-            print ts+": Ch%02d: % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])
+            if INCLUDE_CURRENT:
+                print ts+": Ch%02d: % 13.6fKWh (% 5dW) (% 7.2fA)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x], p['ch%d_a' % x])
+            else:
+                print ts+": Ch%02d: % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])
         for x in range(1, self.NUM_PULSE + 1):
             print ts+": p%d: % 15d" % (x, p['p%d' % x])
         for x in range(1, self.NUM_SENSE + 1):
@@ -3762,6 +3778,10 @@ class OpenEnergyMonitorProcessor(UploadProcessor):
         for p in packets:
             osn = obfuscate_serial(p['serial'])
             data = []
+            data.append('(%s:%.1f)' % (mklabel(osn, 'volts'), p['volts']))
+            if INCLUDE_CURRENT:
+                for idx, c, in enumerate(PACKET_FORMAT.channels(FILTER_CURRENT)):
+                    data.append('%s:%.2f' % (mklabel(osn, c), p[c]))
             for idx, c in enumerate(PACKET_FORMAT.channels(FILTER_PE_LABELS)):
                 data.append('%s_w:%.2f' % (mklabel(osn, c), p[c+'_w']))
             for idx, c in enumerate(PACKET_FORMAT.channels(FILTER_PE_LABELS)):
@@ -3967,6 +3987,7 @@ if __name__ == '__main__':
     parser.add_option('--trust-device-clock', action='store_true', default=False, help='use device clock for packet timestamps')
     parser.add_option('--utc-device-clock', action='store_true', dest='device_clock_is_utc', default=False, help='device clock is in UTC')
     parser.add_option('--reverse-polarity', default=False, help='reverse polarity on all channels')
+    parser.add_option('--include-current', default=False, help='include and process current (amp) values from GEM')
     parser.add_option('--device-list', help='comma-separated list of device identifiers', metavar='LIST')
     parser.add_option('--full-serials', action='store_true', default=False, help='show full serial numbers instead of XXX123')
 
@@ -4199,6 +4220,8 @@ if __name__ == '__main__':
     if options.reverse_polarity:
         REVERSE_POLARITY = 1
         infmsg('polarity is reversed')
+    if options.include_current:
+        INCLUDE_CURRENT = 1
     if options.full_serials:
         OBFUSCATE_SERIALS = 0
 
