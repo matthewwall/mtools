@@ -1,5 +1,5 @@
 #!/usr/bin/python -u
-__version__ = '3.2.0'
+__version__ = '3.3.0'
 """Data collector/processor for Brultech monitoring devices.
 
 Collect data from Brultech ECM-1240, ECM-1220, and GEM power monitors.  Print
@@ -758,6 +758,9 @@ Please consider the following when upgrading from ecmread.py:
 
 
 Changelog:
+
+- 3.3.0
+* added InfluxDB support (thanks to chicago6061 and mroch)
 
 - 3.2.0  07sep16 mwall
 * added MQTT support (thanks to mrguessed)
