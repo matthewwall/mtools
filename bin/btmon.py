@@ -671,6 +671,11 @@ Please consider the following when upgrading from ecmread.py:
 
 Changelog:
 
+- 3.1.2  06sep16 mwall
+* added option to disable serial obfuscation (thanks to mroch)
+* added option for utc clock (thanks to mroch)
+* supress sql warnings (thanks to WaterByWind)
+
 - 3.1.1  06mar15 mwall
 * fixed debug message in SocketServerCollector (thanks to Brian Klass)
 
@@ -2788,14 +2793,16 @@ class MySQLConfigurator(MySQLClient):
         try:
             self.setup()
 
-            infmsg('MYSQL: creating database %s' % self.db_database)
             cursor = self.conn.cursor()
-            cursor.execute('create database if not exists %s' % self.db_database)
-            cursor.close()
-
-            infmsg('MYSQL: creating table %s' % self.db_table)
-            cursor = self.conn.cursor()
-            cursor.execute('create table if not exists %s %s' % (self.db_table, SCHEMA.gettablesql('auto_increment')))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                infmsg('MYSQL: creating database %s' % self.db_database)
+                cursor.execute('create database if not exists %s' %
+                               self.db_database)
+                infmsg('MYSQL: creating table %s' % self.db_table)
+                cursor.execute('create table if not exists %s %s' %
+                               (self.db_table,
+                                SCHEMA.gettablesql('auto_increment')))
             cursor.close()
 
             self.conn.commit()
