@@ -1,5 +1,5 @@
 #!/usr/bin/python -u
-__version__ = '3.1.1'
+__version__ = '3.2.0'
 """Data collector/processor for Brultech monitoring devices.
 
 Collect data from Brultech ECM-1240, ECM-1220, and GEM power monitors.  Print
@@ -9,6 +9,7 @@ Includes support for uploading to the following services:
   * MyEnerSave     * SmartEnergyGroups   * xively         * WattzOn
   * PlotWatt       * PeoplePower         * thingspeak     * Eragy
   * emoncms        * Wattvision          * PVOutput       * Bidgely
+  * MQTT
 
 Thanks to:
   Amit Snyderman <amit@amitsnyderman.com>
@@ -646,6 +647,65 @@ pvo_consumption_channel = 399999_ch2
 pvo_temperature_channel = 399999_t1
 
 
+MQTT Configuration:
+
+1) setup an mqtt server, like mosquitto
+2) create a password-protected mqtt account, eg. "energy"
+3) use pip to install the "paho-mqtt" module
+
+Without a mqtt_map parameter config, the setup will push data to the mqtt
+server with topic names of the form:
+
+the voltage of the system:
+  <base_topic> /volts -> <volts-value>
+
+for each energy channel:
+  <base_topic> /ch <channel-n> _w -> <power-value>
+  <base_topic> /ch <channel-n> _wh -> <energy-value>
+  <base_topic> /ch <channel-n> _dwh -> <delta-energy-value>
+
+for each temperature channel:
+  <base_topic> /t <temperature-n> -> <temperature-value>
+
+for each pulse channel:
+  <base_topic> /p <pulse-n> -> <pulse-count>
+
+for example:
+   [{"topic":"/house/energy/volts", "payload":123.7},
+    {"topic":"/house/energy/399999_ch1_w", "payload":539.533},
+    {"topic":"/house/energy/399999_ch1_wh", "payload":6851728.012},
+    {"topic":"/house/energy/399999_ch1_dwh", "payload":2.248},
+    {"topic":"/house/energy/399999_p1", "payload":3141592},
+    {"topic":"/house/energy/399999_t1", "payload":79.500}]
+
+Temperature, Pulse and Voltage values are emitted only if supported by the
+underlying device.
+
+By configuring the mqtt_map parameter, you can set this up to provide output
+like this:
+
+   [{"topic":"/house/energy/volts", "payload":123.7},
+    {"topic":"/house/energy/solar", "payload":539.533},
+    {"topic":"/house/energy/solar_wh", "payload":6851728.012},
+    {"topic":"/house/energy/solar_dwh", "payload":2.248},
+    {"topic":"/house/energy/water", "payload":3141592},
+    {"topic":"/house/energy/garage_temperature", "payload":79.500}]
+
+Here's a sample mqtt configuration/section running against an mqtt broker
+on the same instance (localhost) as the btmon.py process.
+
+[mqtt]
+mqtt_out=true
+mqtt_host=localhost
+mqtt_port=1883
+mqtt_clientid=btmon
+mqtt_base_topic=/house/energy
+mqtt_user=energy
+mqtt_passwd=please_set_me
+mqtt_map=399999_ch1_w,solar,399999_ch1_wh,solar_wh,399999_t1,garage
+mqtt_upload_period=60
+
+
 Upgrading:
 
 Please consider the following when upgrading from ecmread.py:
@@ -670,6 +730,9 @@ Please consider the following when upgrading from ecmread.py:
 
 
 Changelog:
+
+- 3.2.0  07sep16 mwall
+* added MQTT support (thanks to mrguessed)
 
 - 3.1.2  06sep16 mwall
 * added option to disable serial obfuscation (thanks to mroch)
@@ -1124,6 +1187,21 @@ PVO_GEN_CHANNEL = ''
 PVO_CON_CHANNEL = ''
 PVO_TEMP_CHANNEL = ''
 
+# MQTT defaults
+#   Recommended upload period matches the sample period.  If set slower
+#   than the sample period, batches of un-timestamped mqtt messages
+#   will be delivered to the mqtt broker.
+# the map is a comma-delimited list of channel,topic pairs.  for example:
+#   399999_ch1_w,solar,399999_ch1_wh,solar_wh,399999_t1,garage
+MQTT_HOST              = 'localhost'
+MQTT_PORT              = 1883
+MQTT_CLIENTID          = 'btmon'
+MQTT_BASE_TOPIC        = '/house/energy'
+MQTT_QOS               = 0
+MQTT_RETAIN            = False
+MQTT_MAP               = ''
+MQTT_UPLOAD_PERIOD     = MINUTE
+
 
 import base64
 import bisect
@@ -1178,6 +1256,11 @@ try:
 except ImportError:
     ConfigParser = None
 
+try:
+    import paho.mqtt.publish as publish
+except ImportError:
+    publish = None
+
 
 class CounterResetError(Exception):
     def __init__(self, msg):
@@ -1220,7 +1303,7 @@ LOG_ERROR = 0
 LOG_WARN  = 1
 LOG_INFO  = 2
 LOG_DEBUG = 3
-LOGLEVEL  = 2
+LOGLEVEL  = LOG_INFO
 
 def dbgmsg(msg):
     if LOGLEVEL >= LOG_DEBUG:
@@ -1436,7 +1519,7 @@ class BasePacket(object):
             if not data: # No data left
                 raise ReadError('no data after %d bytes' % len(packet))
             packet += data
- 
+
         if len(packet) < pktlen:
             raise ReadError("incomplete packet: expected %d bytes, got %d" %
                             (pktlen, len(packet)))
@@ -3971,7 +4054,99 @@ class PVOutputProcessor(UploadProcessor):
                         '\n  api_key: ' + self.api_key,
                         '\n  system_id: ' + self.system_id,
                         '\n  data:  ' + payload]))
-            
+
+
+class MQTTProcessor(BaseProcessor):
+    def __init__(self, host, port, clientid, base_topic, qos, retain,
+                 will, user, passwd, tls, map, period):
+        if not publish:
+            print 'MQTT Error: paho.mqtt.publish module could not be imported.'
+            sys.exit(1)
+
+        super(MQTTProcessor, self).__init__()
+        self.host  = host
+        self.port  = int(port)
+        self.clientid  = clientid
+        self.base_topic = base_topic
+        self.qos = int(qos)
+        self.retain = retain
+        self.will = will
+        self.user  = user
+        self.passwd  = passwd
+        self.tls = tls
+        self.map_str  = map
+        self.process_period = int(period)
+
+        infmsg('MQTT: mqtt:%s:%d?clientid=%s' %
+               (self.host, self.port, self.clientid))
+        infmsg('MQTT: user: %s' % (self.user or '<not-specified>'))
+        infmsg('MQTT: tls: %s' % (self.tls or '<not-specified>'))
+        infmsg('MQTT: topic: %s' % self.base_topic)
+        infmsg('MQTT: qos: %d' % self.qos)
+        infmsg('MQTT: retain: %s' % self.retain)
+        infmsg('MQTT: will: %s' % (self.will or '<not-specified>'))
+        infmsg('MQTT: upload period: %d' % self.process_period)
+        infmsg('MQTT: map: %s' % self.map_str)
+
+    def setup(self):
+        if self.user == None and self.passwd != None:
+            print 'MQTT Error: mqtt-user must be provided if mqtt-passwd configured'
+            sys.exit(1)
+        if self.qos not in (0, 1, 2):
+            print 'MQTT Error: qos values are 0, 1 or 2'
+            sys.exit(1)
+
+        self.map = pairs2dict(self.map_str)
+        if (self.user == None):
+            self.auth = None
+        else:
+            self.auth = {'username': self.user}
+            if self.passwd not in (None, ''):
+                self.auth['password'] = self.passwd
+
+        try:
+            self.will = json.loads(self.will) if self.will else None
+        except Exception:
+            print 'MQTT Error: mqtt-will parameter must be valid JSON'
+            sys.exit(1)
+
+        try:
+            self.tls = json.loads(self.tls) if self.tls else None
+        except Exception:
+            print 'MQTT Error: mqtt-tls parameter must be valid JSON'
+            sys.exit(1)
+
+    def _add_msg(self, packet, channel, payload):
+       if not payload:
+           return
+       key = mklabel(packet['serial'], channel)
+       if key in self.map:
+          key = self.map[key]
+       self._msgs.append({'topic': '%s/%s' % (self.base_topic, key),
+                    'payload': round(payload, 3),
+                    'qos': self.qos,
+                    'retain': self.retain})
+
+    def process_calculated(self, packets):
+        self._msgs = []
+        for p in packets:
+            self._add_msg(p, 'volts', p['volts'])
+            for f in [FILTER_POWER, FILTER_ENERGY, FILTER_PULSE, FILTER_SENSOR]:
+                for c in PACKET_FORMAT.channels(f):
+                    self._add_msg(p, c, p[c])
+            # Delta Wh
+            for c in PACKET_FORMAT.channels(FILTER_PE_LABELS):
+                self._add_msg(p, c+'_dwh', p[c+'_dwh'])
+
+        if len(self._msgs):
+            dbgmsg('MQTT: len=%d, msgs=%s' %
+                   (len(self._msgs), json.dumps(self._msgs)))
+            publish.multiple(self._msgs, hostname=self.host, port=self.port,
+                             client_id=self.clientid, auth=self.auth,
+                             will=self.will, tls=self.tls)
+            self.msgs = None
+        else:
+           dbgmsg('MQTT: Nothing to send')
 
 
 if __name__ == '__main__':
@@ -4180,6 +4355,22 @@ if __name__ == '__main__':
     group.add_option('--pvo-timeout', help='timeout period in seconds', metavar='TIMEOUT')
     parser.add_option_group(group)
 
+    group = optparse.OptionGroup(parser, 'MQTT options')
+    group.add_option('--mqtt', action='store_true', dest='mqtt_out', default=False, help='upload data using MQTT API')
+    group.add_option('--mqtt-host', help='mqtt host', metavar='HOSTNAME')
+    group.add_option('--mqtt-port', type='int', help='mqtt port', metavar='PORT')
+    group.add_option('--mqtt-clientid', help='client-id', metavar='CLIENTID')
+    group.add_option('--mqtt-base-topic', help='base topic', metavar='TOPIC')
+    group.add_option('--mqtt-qos', type='int', help='quality of service', metavar='QOS')
+    group.add_option('--mqtt-retain', action='store_true', help='retain msg as last good value', metavar='RETAIN')
+    group.add_option('--mqtt-will', help='mqtt will for the client', metavar='{"topic": "<topic>", "payload":"<payload>", "qos":<qos>, "retain":<retain>}')
+    group.add_option('--mqtt-user', help='user', metavar='USERNAME')
+    group.add_option('--mqtt-passwd', help='password', metavar='PASSWORD')
+    group.add_option('--mqtt-tls', help='tls credentials', metavar='{"ca_certs":"<ca_certs>", "certfile":"<certfile>", "keyfile":"<keyfile>", "tls_version":"<tls_version>", "ciphers":"<ciphers>"}')
+    group.add_option('--mqtt-map', help='channel-to-topic mapping', metavar='<channel-1>,<topic-1>,...<channel-n>,<topic-n>')
+    group.add_option('--mqtt-upload-period', type='int', help='upload period in seconds', metavar='PERIOD')
+    parser.add_option_group(group)
+
     (options, args) = parser.parse_args()
 
     if options.quiet:
@@ -4372,7 +4563,7 @@ if __name__ == '__main__':
             options.peoplepower_out or options.eragy_out or
             options.smartenergygroups_out or options.thingspeak_out or
             options.pachube_out or options.oem_out or
-            options.wattvision_out or options.pvo_out):
+            options.wattvision_out or options.pvo_out or options.mqtt_out):
         print 'Please specify one or more processing options (or \'-h\' for help):'
         print '  --print              print to screen'
         print '  --mysql              write to mysql database'
@@ -4381,6 +4572,7 @@ if __name__ == '__main__':
         print '  --bidgely            upload to Bidgely'
         print '  --enersave           upload to EnerSave (deprecated)'
         print '  --eragy              upload to Eragy'
+        print '  --mqtt               upload to MQTT broker'
         print '  --oem                upload to OpenEnergyMonitor'
         print '  --pachube            upload to Pachube'
         print '  --peoplepower        upload to PeoplePower'
@@ -4507,6 +4699,20 @@ if __name__ == '__main__':
                       options.pvo_temperature_channel or PVO_TEMP_CHANNEL,
                       options.pvo_upload_period or PVO_UPLOAD_PERIOD,
                       options.pvo_timeout or PVO_TIMEOUT))
+    if options.mqtt_out:
+        procs.append(MQTTProcessor
+                     (options.mqtt_host or MQTT_HOST,
+                      options.mqtt_port or MQTT_PORT,
+                      options.mqtt_clientid or MQTT_CLIENTID,
+                      options.mqtt_base_topic or MQTT_BASE_TOPIC,
+                      options.mqtt_qos or MQTT_QOS,
+                      options.mqtt_retain or MQTT_RETAIN,
+                      options.mqtt_will,
+                      options.mqtt_user,
+                      options.mqtt_passwd,
+                      options.mqtt_tls,
+                      options.mqtt_map or MQTT_MAP,
+                      options.mqtt_upload_period or MQTT_UPLOAD_PERIOD))
 
     mon = Monitor(col, procs)
     mon.run()
