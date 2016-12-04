@@ -1156,11 +1156,11 @@ PBE_TOKEN = ''
 PBE_FEED = ''
 
 # open energy monitor emoncms defaults
-OEM_URL = 'https://localhost/emoncms/api/post'
+OEM_URL = 'https://localhost/emoncms/input/post.json'
 OEM_UPLOAD_PERIOD = MINUTE
 OEM_TIMEOUT = 15 # seconds
 OEM_TOKEN = ''
-OEM_NODE = None
+OEM_NODE = 1
 
 # wattvision v0.2 defaults
 #   https://www.wattvision.com/usr/api
@@ -3861,7 +3861,7 @@ class OpenEnergyMonitorProcessor(UploadProcessor):
         for p in packets:
             osn = obfuscate_serial(p['serial'])
             data = []
-            data.append('(%s:%.1f)' % (mklabel(osn, 'volts'), p['volts']))
+            data.append('%s:%.1f' % (mklabel(osn, 'volts'), p['volts']))
             if INCLUDE_CURRENT:
                 for idx, c, in enumerate(PACKET_FORMAT.channels(FILTER_CURRENT)):
                     data.append('%s:%.2f' % (mklabel(osn, c), p[c]))
