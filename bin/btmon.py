@@ -216,6 +216,17 @@ this is a total of about 162M for 2 years of data.  On an arm-based plug
 computer reading/writing to a very slow usb drive, a single update takes about
 45 seconds for 108 RRD files.
 
+Graphite/whisper configuration:
+
+Specify a hostname and port which will receive pickle-format data in your
+configuration. The default port which listens for this data is 2004. Dots will
+be added to your prefix if necessary.
+
+[graphite]
+graphite_host = localhost
+graphite_port = 2004
+prefix = foo.bar.monitor.power.gem
+
 
 OpenEnergyMonitor Configuration:
 
@@ -1059,6 +1070,11 @@ RRD_RESOLUTIONS = [34560, 17280, 17520, 17520]
 RRD_UPDATE_PERIOD = 60  # how often to update the rrd files, in seconds
 RRD_POLL_INTERVAL = 120 # how often to poll when rrd is source, in seconds
 
+# graphite defaults
+GRAPHITE_HOST = 'localhost'
+GRAPHITE_PORT = 2004
+GRAPHITE_PREFIX = 'gem'
+
 # WattzOn defaults
 # the map is a comma-delimited list of channel,meter pairs.  for example:
 #   311111_ch1,living room,311112_ch1,parlor,311112_aux4,kitchen
@@ -1206,10 +1222,13 @@ MQTT_UPLOAD_PERIOD     = MINUTE
 import base64
 import bisect
 import calendar
+import collections
 import errno
 import optparse
 import socket
 import os
+import pickle
+import struct
 import sys
 import time
 import traceback
@@ -3080,6 +3099,56 @@ class RRDProcessor(BaseProcessor):
         # process each packet - assumes device emits at same frequency as step
         self._update_files(packets)
 
+class GraphiteProcessor(BaseProcessor):
+    otherValues = ['p1', 'p2', 'p3', 'p4', 't1', 't2', 't3', 't4', 't5', 't6',
+                   't7', 't8', 'volts']
+    # How many entries to buffer in memory, in case of transient network glitch.
+    maxPendingBuffer = 1024
+    def __init__(self, host, port, prefix):
+        super(GraphiteProcessor, self).__init__()
+        self._host = host
+        self._port = port
+        if prefix.endswith('.'):
+            self._prefix = prefix
+        else:
+            self._prefix = prefix + '.'
+        self._unsentBuffer = collections.deque([], GraphiteProcessor.maxPendingBuffer)
+        self._socket = None
+        self._connect()
+
+    def _connect(self):
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.connect((self._host, self._port))
+
+    def process_calculated(self, packets):
+        result = []
+        for p in packets:
+            timestamp = p['time_created']
+            for c in PACKET_FORMAT.channels(FILTER_DB_SCHEMA_COUNTERS):
+                if c in GraphiteProcessor.otherValues:
+                    result.append((self._prefix + c, (timestamp, p[c])))
+                else:
+                    pieces = c.split('_')
+                    if len(pieces) == 2:
+                        (channel, readingType) = pieces
+                        result.append(
+                          ('%schannel%s.%s' % (self._prefix, channel[2:], readingType),
+                           (timestamp, p[c])))
+        payload = pickle.dumps(result, protocol=2)
+        header = struct.pack("!L", len(payload))
+        message = header + payload
+        self._unsentBuffer.append(message)
+        try:
+            while len(self._unsentBuffer) != 0:
+                msg = self._unsentBuffer[0]
+                self._socket.send(msg)
+                self._unsentBuffer.popleft()
+        except socket.error, e:
+            wrnmsg("Reconnecting after socket exception: " + str(e))
+            time.sleep(1)
+            self._connect()
+
+
 
 class UploadProcessor(BaseProcessor):
     class FakeResult(object):
@@ -4240,6 +4309,13 @@ if __name__ == '__main__':
     group.add_option('--rrd-update-period', help='update period in seconds', metavar='PERIOD')
     parser.add_option_group(group)
 
+    group = optparse.OptionGroup(parser, 'graphite output options')
+    group.add_option('--graphite', action='store_true', dest='graphite_out', default=False, help='write data to Graphite database')
+    group.add_option('--graphite-host', help='host to receive pickle-format data', metavar='HOST')
+    group.add_option('--graphite-port', help='port to receive pickle-format data', metavar='PORT')
+    group.add_option('--graphite-prefix', help='prefix to apply to graphite metric names', metavar='PREFIX')
+    parser.add_option_group(group)
+
     group = optparse.OptionGroup(parser, 'WattzOn options')
     group.add_option('--wattzon', action='store_true', dest='wattzon_out', default=False, help='upload data using WattzOn API')
     group.add_option('--wo-user', help='username', metavar='USERNAME')
@@ -4559,6 +4635,7 @@ if __name__ == '__main__':
     # Packet Processor Setup
     if not (options.print_out or options.mysql_out or options.sqlite_out or
             options.rrd_out or options.wattzon_out or options.plotwatt_out or
+            options.graphite_out or
             options.enersave_out or options.bidgely_out or
             options.peoplepower_out or options.eragy_out or
             options.smartenergygroups_out or options.thingspeak_out or
@@ -4569,6 +4646,7 @@ if __name__ == '__main__':
         print '  --mysql              write to mysql database'
         print '  --sqlite             write to sqlite database'
         print '  --rrd                write to round-robin database'
+        print '  --graphite           write to graphite database'
         print '  --bidgely            upload to Bidgely'
         print '  --enersave           upload to EnerSave (deprecated)'
         print '  --eragy              upload to Eragy'
@@ -4608,6 +4686,11 @@ if __name__ == '__main__':
                       options.rrd_step or RRD_STEP,
                       options.rrd_heartbeat or RRD_HEARTBEAT,
                       options.rrd_update_period or RRD_UPDATE_PERIOD))
+    if options.graphite_out:
+        procs.append(GraphiteProcessor
+                     (options.graphite_host or GRAPHITE_HOST,
+                      options.graphite_port or GRAPHITE_PORT,
+                      options.graphite_prefix or GRAPHITE_PREFIX))
     if options.wattzon_out:
         procs.append(WattzOnProcessor
                      (options.wo_api_key or WATTZON_API_KEY,
