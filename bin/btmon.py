@@ -1,5 +1,5 @@
 #!/usr/bin/python -u
-__version__ = '3.3.0'
+__version__ = '3.3.1'
 """Data collector/processor for Brultech monitoring devices.
 
 Collect data from Brultech ECM-1240, ECM-1220, and GEM power monitors.  Print
@@ -243,6 +243,7 @@ influxdb_measurement = energy       # required
 influxdb_mode = row                 # "row": 1 series w/ many values; "col": many series w/ 1 value each
 influxdb_map = 1234567_ch1_aws,a,1234567_ch2_aws,b  # renames channels
 influxdb_tags = key1,value1,key2,value2             # adds tags
+influxdb_db_schema = counters,ecmread,ecmreadext       # selects schema, default counters
 
 
 OpenEnergyMonitor Configuration:
@@ -759,6 +760,9 @@ Please consider the following when upgrading from ecmread.py:
 
 Changelog:
 
+- 3.3.1
+* added diffent schema formats to GEM and InfluxDB
+
 - 3.3.0
 * added InfluxDB support (thanks to chicago6061 and mroch)
 
@@ -1247,6 +1251,7 @@ INFLUXDB_MEASUREMENT = ''
 INFLUXDB_MODE = 'col'
 INFLUXDB_MAP = ''
 INFLUXDB_TAG_MAP = ''
+INFLUXDB_DB_SCHEMA = FILTER_DB_SCHEMA_COUNTERS
 
 import base64
 import bisect
@@ -1923,6 +1928,27 @@ class GEM48PBinaryPacket(BasePacket):
                 c.append('p%d' % x)
             for x in range(1, self.NUM_SENSE + 1):
                 c.append('t%d' % x)
+        elif fltr == FILTER_DB_SCHEMA_ECMREAD:
+            c = ['volts']
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_a' % x)
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_w' % x)
+        elif fltr == FILTER_DB_SCHEMA_ECMREADEXT:
+            c = ['volts']
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_a' % x)
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_w' % x)
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_wh' % x)
+            for x in range(1, self.NUM_CHAN + 1):
+                c.append('ch%d_dwh' % x)
+            for x in range(1, self.NUM_PULSE + 1):
+                c.append('p%d' % x)
+            for x in range(1, self.NUM_SENSE + 1):
+                c.append('t%d' % x)
+            
         return c
 
     def compile(self, rpkt):
@@ -4199,7 +4225,7 @@ class MQTTProcessor(BaseProcessor):
 
 
 class InfluxDBProcessor(UploadProcessor):
-    def __init__(self, host, port, username, password, database, mode, measurement, map_str, tag_str, period, timeout):
+    def __init__(self, host, port, username, password, database, mode, measurement, map_str, tag_str, period, timeout, db_schema):
         super(InfluxDBProcessor, self).__init__()
         self.host = host
         self.port = port
@@ -4214,12 +4240,29 @@ class InfluxDBProcessor(UploadProcessor):
         self.timeout = int(timeout)
         self.map = dict()
         self.tags = dict()
+		
+        if not db_schema:
+            self.db_schema = FILTER_DB_SCHEMA_COUNTERS
+        elif db_schema == DB_SCHEMA_COUNTERS:
+            self.db_schema = FILTER_DB_SCHEMA_COUNTERS
+        elif db_schema == DB_SCHEMA_ECMREAD:
+            self.db_schema = FILTER_DB_SCHEMA_ECMREAD
+        elif db_schema == DB_SCHEMA_ECMREADEXT:
+            self.db_schema = FILTER_DB_SCHEMA_ECMREADEXT
+        else:
+            print "Unsupported database schema '%s'" % db_schema
+            print 'supported schemas include:'
+            for fmt in DB_SCHEMAS:
+                print '  %s' % fmt
+            sys.exit(1)
+		
 
         infmsg('InfluxDB: upload period: %d' % self.process_period)
         infmsg('InfluxDB: host: %s' % self.host)
         infmsg('InfluxDB: port: %s' % self.port)
         infmsg('InfluxDB: username: %s' % self.username)
         infmsg('InfluxDB: map: %s' % self.map_str)
+        infmsg('InfluxDB: schema: %s' % self.db_schema)
 
     def setup(self):
         self.map = pairs2dict(self.map_str)
@@ -4231,7 +4274,7 @@ class InfluxDBProcessor(UploadProcessor):
         series = []
         for p in packets:
             dev_serial = obfuscate_serial(p['serial'])
-            for c in PACKET_FORMAT.channels(FILTER_DB_SCHEMA_COUNTERS):
+            for c in PACKET_FORMAT.channels(self.db_schema):
                 key = mklabel(p['serial'], c)
                 if self.map and key not in self.map:
                     continue
@@ -4494,6 +4537,7 @@ if __name__ == '__main__':
     group.add_option('--influxdb-tags', help='map of shared tags to add (a,b,c,d adds tag a with value b, tag c with value d)', metavar='MAP')
     group.add_option('--influxdb-upload-period', help='upload period in seconds', metavar='PERIOD')
     group.add_option('--influxdb-timeout', help='timeout period in seconds', metavar='TIMEOUT')
+    group.add_option('--influxdb-db-schema', help='selected database schema', metavar='DB_SCHEMA')
     parser.add_option_group(group)
 
     (options, args) = parser.parse_args()
@@ -4855,7 +4899,8 @@ if __name__ == '__main__':
                       options.influxdb_map or INFLUXDB_MAP,
                       options.influxdb_tags or INFLUXDB_TAG_MAP,
                       options.influxdb_upload_period or INFLUXDB_UPLOAD_PERIOD,
-                      options.influxdb_timeout or INFLUXDB_TIMEOUT))
+                      options.influxdb_timeout or INFLUXDB_TIMEOUT,
+                      options.influxdb_db_schema or INFLUXDB_DB_SCHEMA))
 
     mon = Monitor(col, procs)
     mon.run()
