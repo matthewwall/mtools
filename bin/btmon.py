@@ -4210,7 +4210,7 @@ class MQTTProcessor(BaseProcessor):
         self._msgs = []
         for p in packets:
             self._add_msg(p, 'volts', p['volts'])
-            for f in [FILTER_POWER, FILTER_ENERGY, FILTER_PULSE, FILTER_SENSOR]:
+            for f in [FILTER_POWER, FILTER_CURRENT, FILTER_ENERGY, FILTER_PULSE, FILTER_SENSOR]:
                 for c in PACKET_FORMAT.channels(f):
                     self._add_msg(p, c, p[c])
             # Delta Wh
