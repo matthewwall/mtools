@@ -4117,7 +4117,7 @@ class MQTTProcessor(BaseProcessor):
             sys.exit(1)
 
     def _add_msg(self, packet, channel, payload):
-       if not payload:
+       if payload is None:
            return
        key = mklabel(packet['serial'], channel)
        if key in self.map:
