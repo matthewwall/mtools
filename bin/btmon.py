@@ -4197,6 +4197,7 @@ class MQTTProcessor(BaseProcessor):
 
     def _add_msg(self, packet, channel, payload):
        if payload is None:
+           dbgmsg('MQTT: Payload(%s) for channel(%s) is None. Message not added' % (payload, channel))
            return
        key = mklabel(packet['serial'], channel)
        if key in self.map:
