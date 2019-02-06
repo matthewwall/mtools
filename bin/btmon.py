@@ -9,7 +9,7 @@ Includes support for uploading to the following services:
   * MyEnerSave     * SmartEnergyGroups   * xively         * WattzOn
   * PlotWatt       * PeoplePower         * thingspeak     * Eragy
   * emoncms        * Wattvision          * PVOutput       * Bidgely
-  * MQTT
+  * MQTT           * Sumo Logic
 
 Thanks to:
   Amit Snyderman <amit@amitsnyderman.com>
