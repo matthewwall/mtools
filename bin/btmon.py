@@ -1256,7 +1256,7 @@ MQTT_UPLOAD_PERIOD     = MINUTE
 
 
 # sumo logic defaults
-SUMO_URL = 'https://support.sumologic.com/hc/en-us'
+SUMO_URL = ''
 SUMO_UPLOAD_PERIOD = MINUTE
 SUMO_TIMEOUT = 15 # seconds
 
