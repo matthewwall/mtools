@@ -1255,6 +1255,12 @@ MQTT_MAP               = ''
 MQTT_UPLOAD_PERIOD     = MINUTE
 
 
+# sumo logic defaults
+SUMO_URL = 'https://support.sumologic.com/hc/en-us'
+SUMO_UPLOAD_PERIOD = MINUTE
+SUMO_TIMEOUT = 15 # seconds
+
+
 import base64
 import bisect
 import calendar
@@ -4835,9 +4841,9 @@ if __name__ == '__main__':
                       options.mqtt_upload_period or MQTT_UPLOAD_PERIOD))
     if options.sumo_out:
       procs.append(SumoLogicProcessor
-                   (options.sumo_url or OEM_URL,
-                    options.sumo_upload_period or OEM_UPLOAD_PERIOD,
-                    options.sumo_timeout or OEM_TIMEOUT))
+                   (options.sumo_url or SUMO_URL,
+                    options.sumo_upload_period or SUMO_UPLOAD_PERIOD,
+                    options.sumo_timeout or SUMO_TIMEOUT))
 
     mon = Monitor(col, procs)
     mon.run()
