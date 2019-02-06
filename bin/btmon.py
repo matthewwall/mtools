@@ -709,9 +709,44 @@ mqtt_upload_period=60
 Sumo Logic Configuration:
 
 1) log into sumologic.com interface
-2) create HTTP hook as you will use it in configuration
+2) create HTTP source as you will use it in configuration (example)
+  a) Name: Choose any name you wish
+  b) Source Host is optional but suggest giving a descriptive name
+  c) Source Category: brultech/gem
+  d) Time Zone: set if you need to - defaults to UTC for this type of endpoint
+  e) Time Zone Format: Suggest setting as such:
+    1) Format: epoch
+    2) Timestamp locator: <leave empty>
 
-By default, all channels on all ECMs will be uploaded.
+This will output a URL similar to:
+  https://endpoint1.collection.sumologic.com/receiver/v1/http/7bf1fd3366e55b372c05d85fca6873ff5166e8b0d5a65d2a==
+
+Uploaded data will be JSON, example:
+{ "time_created": "1549470367", "XXX732_volts": "123.9", "XXX732_ch1_w": "889.80", ... }
+
+To create a simple dashboard use the following search for 3 panels:
+  ## graph volts
+  _sourceCategory="brultech/gem" and _collector="collector-name"
+  | json "time_created" as timestamp
+  | json "XXX732_volts" as volts
+  | timeslice 1m
+  | avg(volts) as volts by _timeslice
+
+  ## graph channel 1 watts
+  _sourceCategory="brultech/gem" and _collector="collector-name"
+  | json "time_created" as timestamp
+  | json "XXX732_ch1_w" as ch1_watts
+  | timeslice 1m
+  | avg(ch1_watts) as watts by _timeslice
+
+  ## graph channel 1 amps
+  _sourceCategory="brultech/gem" and _collector="collector-name"
+  | json "time_created" as timestamp
+  | json "XXX732_volts" as volts
+  | json "XXX732_ch1_w" as ch1_watts
+  | ch1_watts/volts as ch1_amps
+  | timeslice 1m
+  | avg(ch1_amps) as amps by _timeslice
 
 For example, this configuration will upload all data from all ECMs.
 
