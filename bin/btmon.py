@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/opt/bin/python -u
 __version__ = '3.2.0'
 """Data collector/processor for Brultech monitoring devices.
 
@@ -1014,6 +1014,8 @@ FILTER_SENSOR = 'sensor'
 FILTER_DB_SCHEMA_COUNTERS = DB_SCHEMA_COUNTERS
 FILTER_DB_SCHEMA_ECMREAD = DB_SCHEMA_ECMREAD
 FILTER_DB_SCHEMA_ECMREADEXT = DB_SCHEMA_ECMREADEXT
+# Delta_mod filter name
+FILTER_DELTA = 'delta'
 
 # serial settings
 # the serial port to which device is connected e.g. COM4, /dev/ttyS01
@@ -1768,6 +1770,9 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
             c = ['volts', 'ch1_a', 'ch2_a', 'ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w', 'ch1_wh', 'ch2_wh', 'aux1_wh', 'aux2_wh', 'aux3_wh', 'aux4_wh', 'aux5_wh', 'ch1_whd', 'ch2_whd', 'aux1_whd', 'aux2_whd', 'aux3_whd', 'aux4_whd', 'aux5_whd', 'ch1_pw', 'ch1_nw', 'ch2_pw', 'ch2_nw', 'ch1_pwh', 'ch1_nwh', 'ch2_pwh', 'ch2_nwh']
         elif fltr == FILTER_DB_SCHEMA_COUNTERS:
             c = ['volts', 'ch1_a', 'ch2_a', 'ch1_aws', 'ch2_aws', 'ch1_pws', 'ch2_pws', 'aux1_ws', 'aux2_ws', 'aux3_ws', 'aux4_ws', 'aux5_ws', 'aux5_volts']
+	# Delta_mod for filter
+        elif fltr == FILTER_DELTA:
+            c = ['delta_w', 'delta_wh', 'delta_dwh']
         return c
 
     def compile(self, rpkt):
@@ -1785,6 +1790,25 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
 
         return cpkt
 
+    # Delta_mod calculation function
+    def _calc_delta(self, ret, prev):
+        main_w = ret['ch1_w']
+        main_wh = ret['ch1_wh']
+        main_dwh = ret['ch1_dwh']
+
+	sum_w = 0
+	sum_wh = 0
+	sum_dwh = 0
+
+        for c in PACKET_FORMAT.channels(FILTER_PE_LABELS)[1:]:
+	    sum_w += ret[c+'_w']
+	    sum_wh += ret[c+'_wh']
+	    sum_dwh += ret[c+'_dwh']
+	
+	ret['delta_w'] = main_w - sum_w
+	ret['delta_wh'] = main_wh - sum_wh
+	ret['delta_dwh'] = main_dwh - sum_dwh
+            
     def calculate(self, now, prev):
         ret = ECM1220BinaryPacket.calculate(self, now, prev)
         ds = self._calc_secs(ret, prev)
@@ -1793,6 +1817,8 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
         self._calc_pe_4byte('aux3', ds, ret, prev)
         self._calc_pe_4byte('aux4', ds, ret, prev)
         self._calc_pe_4byte('aux5', ds, ret, prev)
+	# Delta_mod calculate
+        self._calc_delta(ret, prev)
 
         return ret
 
@@ -1810,6 +1836,7 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
             print ts+": Ch%d Negative Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_nwh' % x]/1000, p['ch%d_nw' % x])
         for x in range(1, self.NUM_AUX + 1):
             print ts+": Aux%d Watts:         % 13.6fKWh (% 5dW)" % (x, p['aux%d_wh' % x]/1000, p['aux%d_w' % x])
+        print ts+": Delta Watts:          % 13.6fKWh (% 5dW)" % (p['delta_wh']/1000, p['delta_w'])
 
 
 # GEM binary packet with 48 channels, polarization
@@ -4142,6 +4169,9 @@ class MQTTProcessor(BaseProcessor):
             # Delta Wh
             for c in PACKET_FORMAT.channels(FILTER_PE_LABELS):
                 self._add_msg(p, c+'_dwh', p[c+'_dwh'])
+	    # Delta_mod mqtt message
+            for d in PACKET_FORMAT.channels(FILTER_DELTA):
+                self._add_msg(p, d, p[d])
 
         if len(self._msgs):
             dbgmsg('MQTT: len=%d, msgs=%s' %
