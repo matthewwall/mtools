@@ -1815,7 +1815,7 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
         elif fltr == FILTER_DB_SCHEMA_ECMREAD:
             c = ['volts', 'ch1_amps', 'ch2_amps', 'ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w']
         elif fltr == FILTER_DB_SCHEMA_ECMREADEXT:
-            c = ['volts', 'ch1_a', 'ch2_a', 'ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w', 'ch1_wh', 'ch2_wh', 'aux1_wh', 'aux2_wh', 'aux3_wh', 'aux4_wh', 'aux5_wh', 'ch1_whd', 'ch2_whd', 'aux1_whd', 'aux2_whd', 'aux3_whd', 'aux4_whd', 'aux5_whd', 'ch1_pw', 'ch1_nw', 'ch2_pw', 'ch2_nw', 'ch1_pwh', 'ch1_nwh', 'ch2_pwh', 'ch2_nwh']
+            c = ['volts', 'ch1_a', 'ch2_a', 'ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w', 'ch1_wh', 'ch2_wh', 'aux1_wh', 'aux2_wh', 'aux3_wh', 'aux4_wh', 'aux5_wh', 'ch1_dwh', 'ch2_dwh', 'aux1_dwh', 'aux2_dwh', 'aux3_dwh', 'aux4_dwh', 'aux5_dwh', 'ch1_pw', 'ch1_nw', 'ch2_pw', 'ch2_nw', 'ch1_pwh', 'ch1_nwh', 'ch2_pwh', 'ch2_nwh']
         elif fltr == FILTER_DB_SCHEMA_COUNTERS:
             c = ['volts', 'ch1_a', 'ch2_a', 'ch1_aws', 'ch2_aws', 'ch1_pws', 'ch2_pws', 'aux1_ws', 'aux2_ws', 'aux3_ws', 'aux4_ws', 'aux5_ws', 'aux5_volts']
         return c
