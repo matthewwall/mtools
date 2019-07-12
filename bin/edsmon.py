@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/env python
 __version__ = '0.2.1'
 """Data collector/processor for EDS One-Wire Server
 

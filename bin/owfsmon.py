@@ -1,4 +1,4 @@
-#!/usr/bin/env python -u
+#!/usr/bin/env python
 __version__ = '0.1.0'
 '''Data collector/processor for OWFS
 
