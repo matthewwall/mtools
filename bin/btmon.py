@@ -1378,6 +1378,7 @@ def errmsg(msg):
 def logmsg(msg):
     ts = fmttime(time.localtime())
     print "%s %s" % (ts, msg)
+    sys.stdout.flush()
 
 # Helper Functions
 
