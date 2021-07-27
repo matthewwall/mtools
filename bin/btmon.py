@@ -2565,11 +2565,23 @@ class SocketServerCollector(BufferedDataCollector):
         try:
             dbgmsg('SOCKET: waiting for connection')
             self._conn, addr = self._sock.accept()
-            self._blockingread(packet_format)
+            self._read(packet_format)
+        except KeyboardInterrupt, e:
+            raise e
+        except EmptyReadError:
+            dbgmsg('SOCKET: client closed connection unexpectedly')
+        except (ReadError, Exception), e:
+            errmsg(e)
+            if LOGLEVEL >= LOG_DEBUG:
+                traceback.print_exc()
         finally:
             if self._conn:
                 dbgmsg('SOCKET: closing connection')
-                self._conn.shutdown(socket.SHUT_RD)
+                try:
+                    self._conn.shutdown(socket.SHUT_RD)
+                except:
+                    # ignore errors like the connection is already closed
+                    pass
                 self._conn.close()
                 self._conn = None
 
