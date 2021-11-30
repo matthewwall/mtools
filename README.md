@@ -8,7 +8,7 @@ Copyright: Matthew Wall, all rights reserved
 License: GPLv3
 
 Pre-Requisites:
-- Python 2.6 or 2.7 (Python 3 is not supported)
+- Python 2.6 or 2.7 (Python 3 is not supported. bin/btmon3.py does support Python 3)
 - python-serial (required for serial connections)
 - python-mysqldb (required if saving to mysql database)
 - python-sqlite3 (required if saving to sqlite database)
