@@ -1389,7 +1389,7 @@ def mkts(seconds):
     return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(seconds))
 
 def getgmtime():
-    return int(time.time())
+    return time.time()
 
 def cleanvalue(s):
     """ensure that values read from configuration file are sane"""
