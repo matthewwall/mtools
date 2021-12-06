@@ -1,6 +1,6 @@
-#!/opt/bin/python -u
-__version__ = '3.3.1'
-"""Data collector/processor for Brultech monitoring devices.
+#!/usr/bin/env python
+__version__ = '4.0.0'
+"""Data collector/processor for Brultech monitoring devices. Python 3 conversion.
 
 Collect data from Brultech ECM-1240, ECM-1220, and GEM power monitors.  Print
 the data, save the data to database, or upload the data to a server.
@@ -1049,8 +1049,6 @@ FILTER_SENSOR = 'sensor'
 FILTER_DB_SCHEMA_COUNTERS = DB_SCHEMA_COUNTERS
 FILTER_DB_SCHEMA_ECMREAD = DB_SCHEMA_ECMREAD
 FILTER_DB_SCHEMA_ECMREADEXT = DB_SCHEMA_ECMREADEXT
-# Delta_mod filter name
-FILTER_DELTA = 'delta'
 
 # serial settings
 # the serial port to which device is connected e.g. COM4, /dev/ttyS01
@@ -1265,10 +1263,11 @@ import os
 import sys
 import time
 import traceback
-import urllib
-import urllib2
-
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
+import binascii
 import warnings
+from functools import reduce
 warnings.filterwarnings('ignore', category=DeprecationWarning) # MySQLdb in 2.6
 
 # External (Optional) Dependencies
@@ -1304,7 +1303,7 @@ except ImportError:
         import json
 
 try:
-    import ConfigParser
+    import configparser
 except ImportError:
     ConfigParser = None
 
@@ -1379,8 +1378,7 @@ def errmsg(msg):
 
 def logmsg(msg):
     ts = fmttime(time.localtime())
-    print "%s %s" % (ts, msg)
-    sys.stdout.flush()
+    print(("%s %s" % (ts, msg)))
 
 # Helper Functions
 
@@ -1528,7 +1526,7 @@ class BasePacket(object):
         self.PACKET_ID         = 0 # must be defined by derived class
 
     def _convert(self, b):
-        return reduce(lambda x,y:x+y[0] * (256**y[1]), zip(b, xrange(len(b))), 0)
+        return reduce(lambda x,y:x+y[0] * (256**y[1]), list(zip(b, list(range(len(b))))), 0)
 
     def _serialraw(self, packet):
         """extract the serial number from a raw packet"""
@@ -1555,6 +1553,7 @@ class BasePacket(object):
         if not data:
             raise EmptyReadError("expected %s %s, got nothing" %
                                  (label, hex(evalue)))
+       
         b = ord(data)
         if b != evalue:
             raise ReadError("expected %s %s, got %s" %
@@ -1570,11 +1569,12 @@ class BasePacket(object):
         data = collector.readbytes(1)
         self._checkbyte(data, 'PACKET_ID', pktid)
 
-        packet = ''
+        packet = b''
         while len(packet) < pktlen:
             data = collector.readbytes(pktlen - len(packet))
             if not data: # No data left
                 raise ReadError('no data after %d bytes' % len(packet))
+                        
             packet += data
 
         if len(packet) < pktlen:
@@ -1585,8 +1585,8 @@ class BasePacket(object):
         self._checkbyte(data, 'END_HEADER0', self.END_HEADER0)
         data = collector.readbytes(1)
         self._checkbyte(data, 'END_HEADER1', self.END_HEADER1)
-
-        pkt = [ord(c) for c in packet]
+        
+        pkt = [c for c in packet]
 
         # if the checksum is incorrect, ignore the packet
         checksum = self._calculate_checksum(pkt, pktid)
@@ -1719,8 +1719,6 @@ class ECM1220BinaryPacket(ECMBinaryPacket):
         c = []
         if fltr == FILTER_PE_LABELS:
             c = ['ch1', 'ch2']
-        elif fltr == FILTER_CURRENT:
-            c = ['ch1_a', 'ch2_a']
         elif fltr == FILTER_POWER:
             c = ['ch1_w', 'ch2_w']
         elif fltr == FILTER_ENERGY:
@@ -1789,15 +1787,15 @@ class ECM1220BinaryPacket(ECMBinaryPacket):
     def printPacket(self, p):
         ts = fmttime(time.localtime(p['time_created']))
 
-        print ts+": Serial: %s" % p['serial']
-        print ts+": Counter: %d" % self._getresetcounter(p['flag'])
-        print ts+": Voltage:           %9.2fV" % p['volts']
+        print((ts+": Serial: %s" % p['serial']))
+        print((ts+": Counter: %d" % self._getresetcounter(p['flag'])))
+        print((ts+": Voltage:           %9.2fV" % p['volts']))
         for x in range(1, self.NUM_CHAN + 1):
-            print ts+": Ch%d Current:        %9.2fA" % (x, p['ch%d_a' % x])
+            print((ts+": Ch%d Current:        %9.2fA" % (x, p['ch%d_a' % x])))
         for x in range(1, self.NUM_CHAN + 1):
-            print ts+": Ch%d Watts:          % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])
-            print ts+": Ch%d Positive Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_pwh' % x]/1000, p['ch%d_pw' % x])
-            print ts+": Ch%d Negative Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_nwh' % x]/1000, p['ch%d_nw' % x])
+            print((ts+": Ch%d Watts:          % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])))
+            print((ts+": Ch%d Positive Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_pwh' % x]/1000, p['ch%d_pw' % x])))
+            print((ts+": Ch%d Negative Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_nwh' % x]/1000, p['ch%d_nw' % x])))
 
 
 class ECM1240BinaryPacket(ECM1220BinaryPacket):
@@ -1813,8 +1811,6 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
         c = []
         if fltr == FILTER_PE_LABELS:
             c = ['ch1', 'ch2', 'aux1', 'aux2', 'aux3', 'aux4', 'aux5']
-        elif fltr == FILTER_CURRENT:
-            c = ['ch1_a', 'ch2_a']
         elif fltr == FILTER_POWER:
             c = ['ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w']
         elif fltr == FILTER_ENERGY:
@@ -1825,9 +1821,6 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
             c = ['volts', 'ch1_a', 'ch2_a', 'ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w', 'ch1_wh', 'ch2_wh', 'aux1_wh', 'aux2_wh', 'aux3_wh', 'aux4_wh', 'aux5_wh', 'ch1_dwh', 'ch2_dwh', 'aux1_dwh', 'aux2_dwh', 'aux3_dwh', 'aux4_dwh', 'aux5_dwh', 'ch1_pw', 'ch1_nw', 'ch2_pw', 'ch2_nw', 'ch1_pwh', 'ch1_nwh', 'ch2_pwh', 'ch2_nwh']
         elif fltr == FILTER_DB_SCHEMA_COUNTERS:
             c = ['volts', 'ch1_a', 'ch2_a', 'ch1_aws', 'ch2_aws', 'ch1_pws', 'ch2_pws', 'aux1_ws', 'aux2_ws', 'aux3_ws', 'aux4_ws', 'aux5_ws', 'aux5_volts']
-	# Delta_mod for filter
-        elif fltr == FILTER_DELTA:
-            c = ['delta_w', 'delta_wh', 'delta_dwh']
         return c
 
     def compile(self, rpkt):
@@ -1845,25 +1838,6 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
 
         return cpkt
 
-    # Delta_mod calculation function
-    def _calc_delta(self, ret, prev):
-        main_w = ret['ch1_w']
-        main_wh = ret['ch1_wh']
-        main_dwh = ret['ch1_dwh']
-
-        sum_w = 0
-        sum_wh = 0
-        sum_dwh = 0
-
-        for c in PACKET_FORMAT.channels(FILTER_PE_LABELS)[1:]:
-            sum_w += ret[c+'_w']
-            sum_wh += ret[c+'_wh']
-            sum_dwh += ret[c+'_dwh']
-
-        ret['delta_w'] = main_w - sum_w
-        ret['delta_wh'] = main_wh - sum_wh
-        ret['delta_dwh'] = main_dwh - sum_dwh
-
     def calculate(self, now, prev):
         ret = ECM1220BinaryPacket.calculate(self, now, prev)
         ds = self._calc_secs(ret, prev)
@@ -1872,26 +1846,23 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
         self._calc_pe_4byte('aux3', ds, ret, prev)
         self._calc_pe_4byte('aux4', ds, ret, prev)
         self._calc_pe_4byte('aux5', ds, ret, prev)
-        # Delta_mod calculate
-        self._calc_delta(ret, prev)
 
         return ret
 
     def printPacket(self, p):
         ts = fmttime(time.localtime(p['time_created']))
 
-        print ts+": Serial: %s" % p['serial']
-        print ts+": Counter: %d" % self._getresetcounter(p['flag'])
-        print ts+": Voltage:            %9.2fV" % p['volts']
+        print((ts+": Serial: %s" % p['serial']))
+        print((ts+": Counter: %d" % self._getresetcounter(p['flag'])))
+        print((ts+": Voltage:            %9.2fV" % p['volts']))
         for x in range(1, self.NUM_CHAN + 1):
-            print ts+": Ch%d Current:        %9.2fA" % (x, p['ch%d_a' % x])
+            print((ts+": Ch%d Current:        %9.2fA" % (x, p['ch%d_a' % x])))
         for x in range(1, self.NUM_CHAN + 1):
-            print ts+": Ch%d Watts:          % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])
-            print ts+": Ch%d Positive Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_pwh' % x]/1000, p['ch%d_pw' % x])
-            print ts+": Ch%d Negative Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_nwh' % x]/1000, p['ch%d_nw' % x])
+            print((ts+": Ch%d Watts:          % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])))
+            print((ts+": Ch%d Positive Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_pwh' % x]/1000, p['ch%d_pw' % x])))
+            print((ts+": Ch%d Negative Watts: % 13.6fKWh (% 5dW)" % (x, p['ch%d_nwh' % x]/1000, p['ch%d_nw' % x])))
         for x in range(1, self.NUM_AUX + 1):
-            print ts+": Aux%d Watts:         % 13.6fKWh (% 5dW)" % (x, p['aux%d_wh' % x]/1000, p['aux%d_w' % x])
-        print ts+": Delta Watts:          % 13.6fKWh (% 5dW)" % (p['delta_wh']/1000, p['delta_w'])
+            print((ts+": Aux%d Watts:         % 13.6fKWh (% 5dW)" % (x, p['aux%d_wh' % x]/1000, p['aux%d_w' % x])))
 
 
 # GEM binary packet with 48 channels, polarization
@@ -2055,17 +2026,17 @@ class GEM48PBinaryPacket(BasePacket):
     def printPacket(self, p):
         ts = fmttime(time.localtime(p['time_created']))
 
-        print ts+": Serial: %s" % p['serial']
-        print ts+": Voltage: % 6.2fV" % p['volts']
+        print((ts+": Serial: %s" % p['serial']))
+        print((ts+": Voltage: % 6.2fV" % p['volts']))
         for x in range(1, self.NUM_CHAN + 1):
             if INCLUDE_CURRENT:
-                print ts+": Ch%02d: % 13.6fKWh (% 5dW) (% 7.2fA)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x], p['ch%d_a' % x])
+                print((ts+": Ch%02d: % 13.6fKWh (% 5dW) (% 7.2fA)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x], p['ch%d_a' % x])))
             else:
-                print ts+": Ch%02d: % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])
+                print((ts+": Ch%02d: % 13.6fKWh (% 5dW)" % (x, p['ch%d_wh' % x]/1000, p['ch%d_w' % x])))
         for x in range(1, self.NUM_PULSE + 1):
-            print ts+": p%d: % 15d" % (x, p['p%d' % x])
+            print((ts+": p%d: % 15d" % (x, p['p%d' % x])))
         for x in range(1, self.NUM_SENSE + 1):
-            print ts+": t%d: % 15.6f" % (x, p['t%d' % x])
+            print((ts+": t%d: % 15.6f" % (x, p['t%d' % x])))
 
 
 # GEM binary packet with 48 channels, polarization, time stamp
@@ -2181,7 +2152,7 @@ class ECMReadSchema(BaseSchema):
 
     def db2pkt(self, row):
         pkt = dict()
-        for key in row.keys():
+        for key in list(row.keys()):
             pktkey = key
             if key.endswith('_amps'):
                 pktkey = key.replace('_amps', '_a')
@@ -2223,7 +2194,7 @@ class ECMReadExtSchema(BaseSchema):
 
     def db2pkt(self, row):
         pkt = dict()
-        for key in row.keys():
+        for key in list(row.keys()):
             pktkey = key
             if key.endswith('_whd'):
                 pktkey = key.replace('_whd', '_dwh')
@@ -2276,7 +2247,7 @@ class Monitor(object):
             try:
                 dbgmsg('processing with %s' % p.__class__.__name__)
                 p.process_compiled(self.packet_collector.packet_buffer)
-            except Exception, e:
+            except Exception as e:
                 if not p.handle(e):
                     wrnmsg('Exception in %s: %s' % (p.__class__.__name__, e))
                     if LOGLEVEL >= LOG_DEBUG:
@@ -2296,7 +2267,7 @@ class Monitor(object):
 
         except KeyboardInterrupt:
             sys.exit(0)
-        except Exception, e:
+        except Exception as e:
             errmsg(e)
             if LOGLEVEL >= LOG_DEBUG:
                 traceback.print_exc()
@@ -2362,11 +2333,11 @@ class BufferedDataCollector(object):
                 self.open()
                 self._read(packet_format)
                 havedata = True
-            except ReadError, e:
+            except ReadError as e:
                 dbgmsg('read failed: %s' % e.msg)
-            except KeyboardInterrupt, e:
+            except KeyboardInterrupt as e:
                 raise e
-            except (EmptyReadError, Exception), e:
+            except (EmptyReadError, Exception) as e:
                 nerr += 1
                 dbgmsg('failed read %d of %d' % (nerr, READ_RETRIES))
                 errmsg(e)
@@ -2395,11 +2366,11 @@ class BufferedDataCollector(object):
                     dbgmsg('waiting for data from device %s' % did)
                     self._read(packet_format)
                     havedata = True
-                except ReadError, e:
+                except ReadError as e:
                     dbgmsg('read failed: %s' % e.msg)
-                except KeyboardInterrupt, e:
+                except KeyboardInterrupt as e:
                     raise e
-                except Exception, e:
+                except Exception as e:
                     dbgmsg('failed request %d of %d for device %s' % (ntries, POLL_RETRIES, did))
                     errmsg(e)
                     if LOGLEVEL >= LOG_DEBUG:
@@ -2411,7 +2382,7 @@ class BufferedDataCollector(object):
 class SerialCollector(BufferedDataCollector):
     def __init__(self, port, rate):
         if not serial:
-            print 'Serial Error: serial module could not be imported.'
+            print ('Serial Error: serial module could not be imported.')
             sys.exit(1)
 
         super(SerialCollector, self).__init__()
@@ -2467,7 +2438,7 @@ class PollingSerialCollector(SerialCollector):
                 dbgmsg('SERIAL: waiting for %d bytes' % (sz - len(resp)))
                 resp += self._conn.read(sz - len(resp))
             return resp
-        except Exception, e:
+        except Exception as e:
             dbgmsg('SERIAL: exception while receiving')
             raise e
 
@@ -2487,7 +2458,7 @@ class BlockingSerialCollector(SerialCollector):
 class SocketClientCollector(BufferedDataCollector):
     def __init__(self, host, port):
         if not host:
-            print 'Socket Error: no host specified'
+            print ('Socket Error: no host specified')
             sys.exit(1)
 
         super(SocketClientCollector, self).__init__()
@@ -2534,7 +2505,7 @@ class PollingSocketClientCollector(SocketClientCollector):
             self._pollingread(packet_format, DEVICE_LIST)
         except socket.timeout:
             dbgmsg('SOCKET: timeout while connecting')
-        except socket.error, e:
+        except socket.error as e:
             if e.errno == errno.EHOSTUNREACH:
                 dbgmsg('SOCKET: host unreachable')
         finally:
@@ -2542,7 +2513,7 @@ class PollingSocketClientCollector(SocketClientCollector):
 
     def send(self, s):
         dbgmsg('SOCKET: sending %s' % s)
-        self._sock.sendall(s)
+        self._sock.sendall(s.encode('utf-8'))
 
     def recv(self, sz=IP_BUFFER_SIZE):
         resp = ''
@@ -2552,10 +2523,10 @@ class PollingSocketClientCollector(SocketClientCollector):
             while len(resp) < sz:
                 dbgmsg('SOCKET: waiting for %d bytes' % (sz - len(resp)))
                 resp += self._sock.recv(sz - len(resp))
-        except socket.timeout, e:
+        except socket.timeout as e:
             dbgmsg('SOCKET: timeout while receiving')
             pass
-        except Exception, e:
+        except Exception as e:
             dbgmsg('SOCKET: exception while receiving')
             raise e
         return resp
@@ -2589,7 +2560,7 @@ class SocketServerCollector(BufferedDataCollector):
     def readbytes(self, count):
         data = self._conn.recv(count)
         dbgmsg('SOCKET: read %d of %d bytes from socket: %s' %
-               (len(data), count, ' '.join(['%02x' % ord(x) for x in data])))
+               (len(data), count, str(binascii.hexlify(data))))
         return data
 
     def read(self, packet_format):
@@ -2673,7 +2644,7 @@ class DatabaseCollector(BufferedDataCollector):
 class MySQLCollector(DatabaseCollector):
     def __init__(self, host, user, password, database, table, poll_interval):
         if not MySQLdb:
-            print 'MySQL Error: MySQLdb module could not be imported.'
+            print ('MySQL Error: MySQLdb module could not be imported.')
             sys.exit(1)
 
         super(MySQLCollector, self).__init__(database+'.'+table, poll_interval)
@@ -2705,10 +2676,10 @@ class MySQLCollector(DatabaseCollector):
 class SqliteCollector(DatabaseCollector):
     def __init__(self, filename, table, poll_interval):
         if not sqlite:
-            print 'Sqlite Error: sqlite3 module could not be imported.'
+            print ('Sqlite Error: sqlite3 module could not be imported.')
             sys.exit(1)
         if not filename:
-            print 'Sqlite Error: no database file specified'
+            print ('Sqlite Error: no database file specified')
             sys.exit(1)
 
         super(SqliteCollector, self).__init__(table, poll_interval)
@@ -2724,7 +2695,7 @@ class SqliteCollector(DatabaseCollector):
 class RRDCollector(BufferedDataCollector):
     def __init__(self, path, step, poll_interval):
         if not rrdtool:
-            print 'RRD Error: rrdtool module could not be imported.'
+            print ('RRD Error: rrdtool module could not be imported.')
             sys.exit(1)
 
         super(RRDCollector, self).__init__()
@@ -2783,7 +2754,7 @@ class MovingBuffer(object):
 
     def newest(self, timestamp):
         """return all packets with timestamp newer than specified timestamp"""
-        idx = bisect.bisect(self.packets, (timestamp, {}))
+        idx = bisect.bisect(self.packets, (timestamp, ))
         return self.packets[idx:]
 
     def oldest(self):
@@ -2827,7 +2798,7 @@ class CompoundBuffer(object):
         return self.buffers[ecm_serial]
 
     def getkeys(self):
-        return self.buffers.keys()
+        return list(self.buffers.keys())
 
 
 # Packet Processor Classes
@@ -2861,7 +2832,7 @@ class BaseProcessor(object):
                             packets.append(PACKET_FORMAT.calculate(b[1], a[1]))
                         except ZeroDivisionError:
                             infmsg("not enough data in buffer for %s" % sn)
-                        except CounterResetError, cre:
+                        except CounterResetError as cre:
                             wrnmsg("counter reset for %s: %s" % (sn, cre.msg))
                     dbgmsg('%d calculated packets sn:%s' % (len(packets), sn))
                     self.process_calculated(packets)
@@ -2888,7 +2859,7 @@ class PrintProcessor(BaseProcessor):
 
     def process_calculated(self, packets):
         for p in packets:
-            print
+            print()
             PACKET_FORMAT.printPacket(p)
 
 
@@ -2916,7 +2887,7 @@ class DatabaseProcessor(BaseProcessor):
 class MySQLClient(object):
     def __init__(self, host, user, passwd, database, table):
         if not MySQLdb:
-            print 'MySQL Error: MySQLdb module could not be imported.'
+            print ('MySQL Error: MySQLdb module could not be imported.')
             sys.exit(1)
 
         self.conn = None
@@ -3020,10 +2991,10 @@ class MySQLConfigurator(MySQLClient):
 class SqliteClient(object):
     def __init__(self, filename, table):
         if not sqlite:
-            print 'Sqlite Error: sqlite3 module could not be imported.'
+            print ('Sqlite Error: sqlite3 module could not be imported.')
             sys.exit(1)
         if not filename:
-            print 'Sqlite Error: no database file specified'
+            print ('Sqlite Error: no database file specified')
             sys.exit(1)
 
         self.db_filename = filename
@@ -3087,7 +3058,7 @@ class SqliteConfigurator(SqliteClient):
 class RRDProcessor(BaseProcessor):
     def __init__(self, path, step, heartbeat, period):
         if not rrdtool:
-            print 'RRD Error: rrdtool module could not be imported.'
+            print ('RRD Error: rrdtool module could not be imported.')
             sys.exit(1)
 
         super(RRDProcessor, self).__init__()
@@ -3162,7 +3133,7 @@ class RRDProcessor(BaseProcessor):
                 if not label in values:
                     values[label] = []
                 values[label].append(self._getvalues(p['time_created'], p[x], t))
-        for label in values.keys():
+        for label in list(values.keys()):
             if len(values[label]) > 0:
                 self._update_rrd(label, values[label])
 
@@ -3217,7 +3188,7 @@ class UploadProcessor(BaseProcessor):
         pass
 
     def _create_request(self, url):
-        req = urllib2.Request(url)
+        req = urllib.request.Request(url)
         req.add_header("User-Agent", "%s/%s" % (__app__, __version__))
         return req
 
@@ -3232,15 +3203,15 @@ class UploadProcessor(BaseProcessor):
             elif self.urlopener:
                 result = self.urlopener.open(req, data, self.timeout)
             else:
-                result = urllib2.urlopen(req, data, self.timeout)
+                result = urllib.request.urlopen(req, data, self.timeout)
             infmsg('%s: %dB url, %dB payload' %
                    (self.__class__.__name__, len(url), len(data)))
             dbgmsg('%s: url: %s\n  response: %s' %
                    (self.__class__.__name__, result.geturl(), result.info()))
-        except urllib2.HTTPError, e:
+        except urllib.error.HTTPError as e:
             self._handle_urlopen_error(e, url, data)
 #            errmsg('%s Error: %s' % (self.__class__.__name__, e.read()))
-        except Exception, e:
+        except Exception as e:
             errmsg('%s Error: %s' % (self.__class__.__name__, e))
         return result
 
@@ -3269,24 +3240,24 @@ class WattzOnProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.api_key and self.username and self.password and self.map_str):
-            print 'WattzOn Error: Insufficient parameters'
+            print ('WattzOn Error: Insufficient parameters')
             if not self.api_key:
-                print '  No API key'
+                print ('  No API key')
             if not self.username:
-                print '  No username'
+                print ('  No username')
             if not self.password:
-                print '  No passord'
+                print ('  No passord')
             if not self.map_str:
-                print '  No mapping between channels and WattzOn meters'
+                print ('  No mapping between channels and WattzOn meters')
             sys.exit(1)
         self.map = pairs2dict(self.map_str)
         if not self.map:
-            print 'WattzOn Error: cannot determine channel-meter map'
+            print ('WattzOn Error: cannot determine channel-meter map')
             sys.exit(1)
-        p = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        p = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         p.add_password('WattzOn', WATTZON_API_URL, self.username,self.password)
-        auth = urllib2.HTTPBasicAuthHandler(p)
-        self.urlopener = urllib2.build_opener(auth)
+        auth = urllib.request.HTTPBasicAuthHandler(p)
+        self.urlopener = urllib.request.build_opener(auth)
 
     def process_calculated(self, packets):
         for p in packets:
@@ -3301,7 +3272,7 @@ class WattzOnProcessor(UploadProcessor):
                     dbgmsg('WattzOn: %s' % result.info())
 
     def handle(self, e):
-        if type(e) == urllib2.HTTPError:
+        if type(e) == urllib.error.HTTPError:
             errmsg(''.join(['HTTPError:  ' + str(e),
                             '\n  URL:      ' + e.geturl(),
                             '\n  username: ' + self.username,
@@ -3320,7 +3291,7 @@ class WattzOnProcessor(UploadProcessor):
         url = '%s/user/%s/powermeter/%s/upload.json?key=%s' % (
             WATTZON_API_URL,
             self.username,
-            urllib.quote(meter),
+            urllib.parse.quote(meter),
             self.api_key)
         req = self._create_request(url)
         return self.urlopener.open(req, json.dumps(data), self.timeout)
@@ -3350,17 +3321,17 @@ class PlotWattProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.api_key and self.house_id and self.map_str):
-            print 'PlotWatt Error: Insufficient parameters'
+            print ('PlotWatt Error: Insufficient parameters')
             if not self.api_key:
-                print '  No API key'
+                print ('  No API key')
             if not self.house_id:
-                print '  No house ID'
+                print ('  No house ID')
             if not self.map_str:
-                print '  No mapping between channels and PlotWatt meters'
+                print ('  No mapping between channels and PlotWatt meters')
             sys.exit(1)
         self.map = pairs2dict(self.map_str)
         if not self.map:
-            print 'PlotWatt Error: cannot determine channel-meter map'
+            print ('PlotWatt Error: cannot determine channel-meter map')
             sys.exit(1)
 
     def process_calculated(self, packets):
@@ -3414,11 +3385,11 @@ class EnerSaveProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.token):
-            print 'EnerSave Error: Insufficient parameters'
+            print ('EnerSave Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.token:
-                print '  No token'
+                print ('  No token')
             sys.exit(1)
         self.map = self.tuples2dict(self.map_str)
 
@@ -3504,11 +3475,11 @@ class BidgelyProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.map_str):
-            print 'Bidgely Error: Insufficient parameters'
+            print ('Bidgely Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.map_str:
-                print '  No Map'
+                print ('  No Map')
             sys.exit(1)
         self.map = self.tuples2dict(self.map_str)
 
@@ -3605,19 +3576,19 @@ class PeoplePowerProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.token and self.hub_id and self.map_str):
-            print 'PeoplePower Error: Insufficient parameters'
+            print ('PeoplePower Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.token:
-                print '  No token'
+                print ('  No token')
             if not self.hub_id:
-                print '  No hub ID'
+                print ('  No hub ID')
             if not self.map_str:
-                print '  No mapping between channels and PeoplePower devices'
+                print ('  No mapping between channels and PeoplePower devices')
             sys.exit(1)
         self.map = pairs2dict(self.map_str)
         if not self.map:
-            print 'PeoplePower Error: cannot determine channel-meter map'
+            print ('PeoplePower Error: cannot determine channel-meter map')
             sys.exit(1)
         if self.do_add_devices:
             self.add_devices()
@@ -3644,7 +3615,7 @@ class PeoplePowerProcessor(UploadProcessor):
 
     def add_devices(self):
         s = []
-        for key in self.map.keys():
+        for key in list(self.map.keys()):
             s.append('<add deviceId="%s" deviceType="%s" />' %
                      (self.map[key], self.dev_type))
         if len(s):
@@ -3693,13 +3664,13 @@ class EragyProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.gateway_id and self.token):
-            print 'Eragy Error: Insufficient parameters'
+            print ('Eragy Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.gateway_id:
-                print '  No gateway ID'
+                print ('  No gateway ID')
             if not self.token:
-                print '  No token'
+                print ('  No token')
             sys.exit(1)
 
     def process_calculated(self, packets):
@@ -3749,14 +3720,14 @@ class SmartEnergyGroupsProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.token):
-            print 'SmartEnergyGroups Error: Insufficient parameters'
+            print ('SmartEnergyGroups Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.token:
-                print '  No token'
+                print ('  No token')
             sys.exit(1)
         self.map = pairs2dict(self.map_str.lower())
-        self.urlopener = urllib2.build_opener(urllib2.HTTPHandler)
+        self.urlopener = urllib.request.build_opener(urllib.request.HTTPHandler)
 
     def process_calculated(self, packets):
         nodes = []
@@ -3836,11 +3807,11 @@ class ThingSpeakProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.tokens_str):
-            print 'ThingSpeak Error: Insufficient parameters'
+            print ('ThingSpeak Error: Insufficient parameters')
             if not self.url:
-                print '  No URL'
+                print ('  No URL')
             if not self.tokens_str:
-                print '  No tokens'
+                print ('  No tokens')
             sys.exit(1)
         self.tokens = pairs2dict(self.tokens_str)
         self.fields = pairs2dict(self.fields_str)
@@ -3887,13 +3858,13 @@ class PachubeProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.token and self.feed):
-            print 'Pachube Error: Insufficient parameters'
+            print ('Pachube Error: Insufficient parameters')
             if not self.url:
-                print '  A URL is required'
+                print ('  A URL is required')
             if not self.url:
-                print '  A token is required'
+                print ('  A token is required')
             if not self.feed:
-                print '  A feed is required'
+                print ('  A feed is required')
             sys.exit(1)
 
     def process_calculated(self, packets):
@@ -3919,9 +3890,9 @@ class PachubeProcessor(UploadProcessor):
                     streams[dskey] = {'id': dskey, 'datapoints': []}
                 dp = {'at': ts, 'value': p[c]}
                 streams[dskey]['datapoints'].append(dp)
-        if len(streams.keys()) > 0:
+        if len(list(streams.keys())) > 0:
             data = {'version':'1.0.0', 'datastreams':[]}
-            for key in streams.keys():
+            for key in list(streams.keys()):
                 data['datastreams'].append(streams[key])
             url = '%s/%s' % (self.url, self.feed)
             result = self._urlopen(url, json.dumps(data))
@@ -3957,11 +3928,11 @@ class OpenEnergyMonitorProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.token):
-            print 'OpenEnergyMonitor Error: Insufficient parameters'
+            print ('OpenEnergyMonitor Error: Insufficient parameters')
             if not self.url:
-                print '  A URL is required'
+                print ('  A URL is required')
             if not self.token:
-                print '  A token is required'
+                print ('  A token is required')
             sys.exit(1)
 
     def process_calculated(self, packets):
@@ -4022,21 +3993,21 @@ class WattvisionProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.api_id and self.api_key and self.sensor_id and self.channelstr):
-            print 'Wattvision Error: Insufficient parameters'
+            print ('Wattvision Error: Insufficient parameters')
             if not self.url:
-                print '  A URL is required'
+                print ('  A URL is required')
             if not self.api_id:
-                print '  An API ID is required'
+                print ('  An API ID is required')
             if not self.api_key:
-                print '  An API key is required'
+                print ('  An API key is required')
             if not self.sensor_id:
-                print '  A Sensor ID is required'
+                print ('  A Sensor ID is required')
             if not self.channelstr:
-                print '  A channel is required'
+                print ('  A channel is required')
             sys.exit(1)
         idx = self.channelstr.find('_')
         if idx == -1:
-            print 'bad format for channel.  expecting XXXXXX_chY'
+            print ('bad format for channel.  expecting XXXXXX_chY')
             sys.exit(1)
         self.serial = self.channelstr[0:idx]
         self.channel = self.channelstr[idx + 1:]
@@ -4099,13 +4070,13 @@ class PVOutputProcessor(UploadProcessor):
 
     def setup(self):
         if not (self.url and self.api_key and self.system_id):
-            print 'PVOutput Error: Insufficient parameters'
+            print ('PVOutput Error: Insufficient parameters')
             if not self.url:
-                print '  A URL is required'
+                print ('  A URL is required')
             if not self.api_key:
-                print '  An API Key is required'
+                print ('  An API Key is required')
             if not self.system_id:
-                print '  A system ID is required'
+                print ('  A system ID is required')
             sys.exit(1)
         [self.gen_ch, self.gen_serial] = self._split(self.gen_str)
         [self.con_ch, self.con_serial] = self._split(self.con_str)
@@ -4145,7 +4116,7 @@ class PVOutputProcessor(UploadProcessor):
                 data['v4'] = p[self.con_ch+'_w']
             if self._havetemp(p['serial']):
                 data['v5'] = p[self.temp_ch]
-            result = self._urlopen(self.url, urllib.urlencode(data))
+            result = self._urlopen(self.url, urllib.parse.urlencode(data))
             # FIXME: need error handling here
 
     def _create_request(self, url):
@@ -4167,7 +4138,7 @@ class MQTTProcessor(BaseProcessor):
     def __init__(self, host, port, clientid, base_topic, qos, retain,
                  will, user, passwd, tls, map, period):
         if not publish:
-            print 'MQTT Error: paho.mqtt.publish module could not be imported.'
+            print ('MQTT Error: paho.mqtt.publish module could not be imported.')
             sys.exit(1)
 
         super(MQTTProcessor, self).__init__()
@@ -4197,10 +4168,10 @@ class MQTTProcessor(BaseProcessor):
 
     def setup(self):
         if self.user == None and self.passwd != None:
-            print 'MQTT Error: mqtt-user must be provided if mqtt-passwd configured'
+            print ('MQTT Error: mqtt-user must be provided if mqtt-passwd configured')
             sys.exit(1)
         if self.qos not in (0, 1, 2):
-            print 'MQTT Error: qos values are 0, 1 or 2'
+            print ('MQTT Error: qos values are 0, 1 or 2')
             sys.exit(1)
 
         self.map = pairs2dict(self.map_str)
@@ -4214,18 +4185,17 @@ class MQTTProcessor(BaseProcessor):
         try:
             self.will = json.loads(self.will) if self.will else None
         except Exception:
-            print 'MQTT Error: mqtt-will parameter must be valid JSON'
+            print ('MQTT Error: mqtt-will parameter must be valid JSON')
             sys.exit(1)
 
         try:
             self.tls = json.loads(self.tls) if self.tls else None
         except Exception:
-            print 'MQTT Error: mqtt-tls parameter must be valid JSON'
+            print ('MQTT Error: mqtt-tls parameter must be valid JSON')
             sys.exit(1)
 
     def _add_msg(self, packet, channel, payload):
-       if payload is None:
-           dbgmsg('MQTT: Payload(%s) for channel(%s) is None. Message not added' % (payload, channel))
+       if payload == None:
            return
        key = mklabel(packet['serial'], channel)
        if key in self.map:
@@ -4239,15 +4209,12 @@ class MQTTProcessor(BaseProcessor):
         self._msgs = []
         for p in packets:
             self._add_msg(p, 'volts', p['volts'])
-            for f in [FILTER_POWER, FILTER_CURRENT, FILTER_ENERGY, FILTER_PULSE, FILTER_SENSOR]:
+            for f in [FILTER_POWER, FILTER_ENERGY, FILTER_CURRENT, FILTER_PULSE, FILTER_SENSOR]:
                 for c in PACKET_FORMAT.channels(f):
                     self._add_msg(p, c, p[c])
             # Delta Wh
             for c in PACKET_FORMAT.channels(FILTER_PE_LABELS):
                 self._add_msg(p, c+'_dwh', p[c+'_dwh'])
-	    # Delta_mod mqtt message
-            for d in PACKET_FORMAT.channels(FILTER_DELTA):
-                self._add_msg(p, d, p[d])
 
         if len(self._msgs):
             dbgmsg('MQTT: len=%d, msgs=%s' %
@@ -4286,10 +4253,10 @@ class InfluxDBProcessor(UploadProcessor):
         elif db_schema == DB_SCHEMA_ECMREADEXT:
             self.db_schema = FILTER_DB_SCHEMA_ECMREADEXT
         else:
-            print "Unsupported database schema '%s'" % db_schema
-            print 'supported schemas include:'
+            print(("Unsupported database schema '%s'" % db_schema))
+            print ('supported schemas include:')
             for fmt in DB_SCHEMAS:
-                print '  %s' % fmt
+                print(('  %s' % fmt))
             sys.exit(1)
 		
 
@@ -4338,6 +4305,11 @@ class InfluxDBProcessor(UploadProcessor):
                 pass
         client.write_points(series, tags=self.tags)
 
+def ord(s):
+    if isinstance(s, (bytes, bytearray)):
+        return int.from_bytes(s, "big")
+    else:
+        return __builtins__.ord(s)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser(version=__version__)
@@ -4586,21 +4558,21 @@ if __name__ == '__main__':
     # if there is a configration file, read the parameters from file and set
     # values on the options object.
     if options.configfile:
-        if not ConfigParser:
-            print 'ConfigParser not loaded, cannot parse config file'
+        if not configparser:
+            print ('ConfigParser not loaded, cannot parse config file')
             sys.exit(1)
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         try:
             config.read(options.configfile)
             for section in config.sections(): # section names do not matter
                 for name, value in config.items(section):
                     if not getattr(options, name):
                         setattr(options, name, cleanvalue(value))
-        except AttributeError, e:
-            print 'unknown parameter in config file: %s' % e
+        except AttributeError as e:
+            print(('unknown parameter in config file: %s' % e))
             sys.exit(1)
-        except Exception, e:
-            print e
+        except Exception as e:
+            print (e)
             sys.exit(1)
 
     infmsg('btmon: %s' % __version__)
@@ -4634,10 +4606,10 @@ if __name__ == '__main__':
     elif options.device_type == DEV_GEM:
         DEVICE_TYPE = GEMDevice()
     else:
-        print "Unsupported device type '%s'" % options.device_type
-        print 'supported device types include:'
+        print(("Unsupported device type '%s'" % options.device_type))
+        print ('supported device types include:')
         for dev in DEVICE_TYPES:
-            print '  %s' % dev
+            print(('  %s' % dev))
         sys.exit(1)
     infmsg('device type: %s' % DEVICE_TYPE.NAME)
 
@@ -4645,8 +4617,8 @@ if __name__ == '__main__':
         options.device_list = DEVICE_TYPE.DEFAULT_DEVICE_LIST
     try:
         DEVICE_TYPE.check_identifiers(options.device_list)
-    except Exception, e:
-        print e
+    except Exception as e:
+        print (e)
         sys.exit(1)
     DEVICE_LIST = DEVICE_TYPE.extract_identifiers(options.device_list)
     infmsg('device list: %s' % DEVICE_LIST)
@@ -4662,10 +4634,10 @@ if __name__ == '__main__':
     elif options.packet_format == PF_GEM48PBIN:
         PACKET_FORMAT = GEM48PBinaryPacket()
     else:
-        print "Unsupported packet format '%s'" % options.packet_format
-        print 'supported formats include:'
+        print(("Unsupported packet format '%s'" % options.packet_format))
+        print ('supported formats include:')
         for fmt in PACKET_FORMATS:
-            print '  %s' % fmt
+            print(('  %s' % fmt))
         sys.exit(1)
     infmsg('packet format: %s' % PACKET_FORMAT.NAME)
 
@@ -4678,10 +4650,10 @@ if __name__ == '__main__':
     elif options.db_schema == DB_SCHEMA_ECMREADEXT:
         SCHEMA = ECMReadExtSchema()
     else:
-        print "Unsupported database schema '%s'" % options.db_schema
-        print 'supported schemas include:'
+        print(("Unsupported database schema '%s'" % options.db_schema))
+        print ('supported schemas include:')
         for fmt in DB_SCHEMAS:
-            print '  %s' % fmt
+            print(('  %s' % fmt))
         sys.exit(1)
     infmsg('schema: %s' % SCHEMA.NAME)
 
@@ -4719,14 +4691,14 @@ if __name__ == '__main__':
     elif options.ip_read:
         if (options.ip_mode and not
             (options.ip_mode == 'client' or options.ip_mode == 'server')):
-            print 'Unknown mode %s: use client or server' % options.ip_mode
+            print(('Unknown mode %s: use client or server' % options.ip_mode))
             sys.exit(1)
 
         mode = options.ip_mode or IP_DEFAULT_MODE
         if mode == 'server':
             col = SocketServerCollector(options.ip_host or IP_SERVER_HOST,
                                         options.ip_port or IP_SERVER_PORT)
-        elif options.ip_poll_interval and options.ip_poll_interval > 0:
+        elif options.ip_poll_interval and int(options.ip_poll_interval) > 0:
             col = PollingSocketClientCollector(options.ip_host,
                                                options.ip_port or IP_CLIENT_PORT,
                                                options.ip_poll_interval)
@@ -4753,12 +4725,12 @@ if __name__ == '__main__':
                            options.rrd_poll_interval or RRD_POLL_INTERVAL)
 
     else:
-        print 'Please specify a data source (or \'-h\' for help):'
-        print '  --serial      read from serial'
-        print '  --ip          read from tcp/ip socket'
-        print '  --mysql-src   read from mysql database'
-        print '  --sqlite-src  read from sqlite database'
-        print '  --rrd-src     read from rrd'
+        print ('Please specify a data source (or \'-h\' for help):')
+        print ('  --serial      read from serial')
+        print ('  --ip          read from tcp/ip socket')
+        print ('  --mysql-src   read from mysql database')
+        print ('  --sqlite-src  read from sqlite database')
+        print ('  --rrd-src     read from rrd')
         sys.exit(1)
 
     # Packet Processor Setup
@@ -4770,25 +4742,25 @@ if __name__ == '__main__':
             options.pachube_out or options.oem_out or
             options.wattvision_out or options.pvo_out or options.mqtt_out or
             options.influxdb_out):
-        print 'Please specify one or more processing options (or \'-h\' for help):'
-        print '  --print              print to screen'
-        print '  --mysql              write to mysql database'
-        print '  --sqlite             write to sqlite database'
-        print '  --rrd                write to round-robin database'
-        print '  --influxdb           write to influxdb database'
-        print '  --bidgely            upload to Bidgely'
-        print '  --enersave           upload to EnerSave (deprecated)'
-        print '  --eragy              upload to Eragy'
-        print '  --mqtt               upload to MQTT broker'
-        print '  --oem                upload to OpenEnergyMonitor'
-        print '  --pachube            upload to Pachube'
-        print '  --peoplepower        upload to PeoplePower'
-        print '  --plotwatt           upload to PlotWatt'
-        print '  --pvo                upload to PVOutput'
-        print '  --smartenergygroups  upload to SmartEnergyGroups'
-        print '  --thingspeak         upload to ThingSpeak'
-        print '  --wattvision         upload to Wattvision'
-        print '  --wattzon            upload to WattzOn'
+        print ('Please specify one or more processing options (or \'-h\' for help):')
+        print ('  --print (             print (to screen')
+        print ('  --mysql              write to mysql database')
+        print ('  --sqlite             write to sqlite database')
+        print ('  --rrd                write to round-robin database')
+        print ('  --influxdb           write to influxdb database')
+        print ('  --bidgely            upload to Bidgely')
+        print ('  --enersave           upload to EnerSave (deprecated)')
+        print ('  --eragy              upload to Eragy')
+        print ('  --mqtt               upload to MQTT broker')
+        print ('  --oem                upload to OpenEnergyMonitor')
+        print ('  --pachube            upload to Pachube')
+        print ('  --peoplepower        upload to PeoplePower')
+        print ('  --plotwatt           upload to PlotWatt')
+        print ('  --pvo                upload to PVOutput')
+        print ('  --smartenergygroups  upload to SmartEnergyGroups')
+        print ('  --thingspeak         upload to ThingSpeak')
+        print ('  --wattvision         upload to Wattvision')
+        print ('  --wattzon            upload to WattzOn')
         sys.exit(1)
 
     procs = []
@@ -4922,7 +4894,7 @@ if __name__ == '__main__':
                       options.mqtt_upload_period or MQTT_UPLOAD_PERIOD))
     if options.influxdb_out:
         if not InfluxDBClient:
-            print 'InfluxDBClient not loaded, cannot write to InfluxDB'
+            print ('InfluxDBClient not loaded, cannot write to InfluxDB')
             sys.exit(1)
         procs.append(InfluxDBProcessor
                      (options.influxdb_host or INFLUXDB_HOST,
