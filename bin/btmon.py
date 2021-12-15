@@ -1717,6 +1717,8 @@ class ECM1220BinaryPacket(ECMBinaryPacket):
         c = []
         if fltr == FILTER_PE_LABELS:
             c = ['ch1', 'ch2']
+        elif fltr == FILTER_CURRENT:
+            c = ['ch1_a', 'ch2_a']
         elif fltr == FILTER_POWER:
             c = ['ch1_w', 'ch2_w']
         elif fltr == FILTER_ENERGY:
@@ -1809,6 +1811,8 @@ class ECM1240BinaryPacket(ECM1220BinaryPacket):
         c = []
         if fltr == FILTER_PE_LABELS:
             c = ['ch1', 'ch2', 'aux1', 'aux2', 'aux3', 'aux4', 'aux5']
+        elif fltr == FILTER_CURRENT:
+            c = ['ch1_a', 'ch2_a']
         elif fltr == FILTER_POWER:
             c = ['ch1_w', 'ch2_w', 'aux1_w', 'aux2_w', 'aux3_w', 'aux4_w', 'aux5_w']
         elif fltr == FILTER_ENERGY:
