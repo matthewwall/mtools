@@ -12,7 +12,9 @@ Pre-Requisites:
 - python-serial (required for serial connections)
 - python-mysqldb (required if saving to mysql database)
 - python-sqlite3 (required if saving to sqlite database)
+- python-influxdb (required if saving to influxdb database)
 - python-rrdtool (required if saving to round-robin database)
+
 
 
 <h2>brultech power monitors</h2>
