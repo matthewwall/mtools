@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-__version__ = '3.3.1'
+__version__ = '3.4.0'
 """Data collector/processor for Brultech monitoring devices.
 
 Collect data from Brultech ECM-1240, ECM-1220, and GEM power monitors.  Print
@@ -759,6 +759,9 @@ Please consider the following when upgrading from ecmread.py:
 
 
 Changelog:
+
+- 3.4.0 15dec2024
+* added 'dotted' mode for influx - measurement name uses a prefix-dot-channel
 
 - 3.3.1
 * added diffent schema formats to GEM and InfluxDB
@@ -4262,6 +4265,7 @@ class InfluxDBProcessor(UploadProcessor):
         infmsg('InfluxDB: host: %s' % self.host)
         infmsg('InfluxDB: port: %s' % self.port)
         infmsg('InfluxDB: username: %s' % self.username)
+        infmsg('InfluxDB: mode: %s' % self.mode)
         infmsg('InfluxDB: map: %s' % self.map_str)
         infmsg('InfluxDB: schema: %s' % self.db_schema)
 
@@ -4280,21 +4284,34 @@ class InfluxDBProcessor(UploadProcessor):
                 if self.map and key not in self.map:
                     continue
                 values = {
-                    "measurement": self.measurement,
                     "time": mkts(p['time_created']),
                 }
-                if self.mode == 'col':
-                    values['fields'] = {
-                       'value': p[c] * 1.0,
-                    }
-                    values['tags'] = {
-                       "serial": dev_serial,
-                       "id": self.map[key] if key in self.map else c,
+                if self.mode == 'dotted':
+                    # measurement will have this form:
+                    # XXX.chN_(a|p)ws
+                    value_name = self.map[key] if key in self.map else c
+                    m = '%s.%s' % (self.measurement, value_name)
+                    values = {
+                        "measurement": m,
+                        "fields": { 'value': p[c] * 1.0 },
+                        "tags": { 'serial': dev_serial },
                     }
                 else:
-                    value_name = self.map[key] if key in self.map else mklabel(dev_serial, c)
-                    values['fields'] = {}
-                    values['fields'][value_name] = p[c] * 1.0
+                    values = {
+                        "measurement": self.measurement,
+                    }
+                    if self.mode == 'col':
+                        values['fields'] = {
+                            'value': p[c] * 1.0,
+                        }
+                        values['tags'] = {
+                            "serial": dev_serial,
+                            "id": self.map[key] if key in self.map else c,
+                        }
+                    else:
+                        value_name = self.map[key] if key in self.map else mklabel(dev_serial, c)
+                        values['fields'] = {}
+                        values['fields'][value_name] = p[c] * 1.0
                 series.append(values)
         client = InfluxDBClient(self.host, self.port, self.username, self.password, self.database)
         try:
